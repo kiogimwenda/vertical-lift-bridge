@@ -1,0 +1,266 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "91bf8544-d106-495f-b660-f6c7322fb0ce")
+	(paper "A4")
+	(lib_symbols)
+	(sheet
+		(at 97.79 148.59)
+		(size 67.31 39.37)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "86c9dc00-ec0e-4b41-9952-02b97a696db8")
+		(property "Sheetname" "ConnectorsSafety"
+			(at 97.79 147.8784 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "ConnectorsSafety.kicad_sch"
+			(at 97.79 188.5446 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "7")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 19.05 17.78)
+		(size 68.58 45.72)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "889447df-ca4f-4a1a-a05f-a2f6dfb8b2f6")
+		(property "Sheetname" "PowerSupply"
+			(at 19.05 17.0684 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "PowerSupply.kicad_sch"
+			(at 19.05 64.0846 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "2")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 21.59 139.7)
+		(size 54.61 41.91)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "ab188d70-550a-4f7c-8cde-420e57bb5871")
+		(property "Sheetname" "ShiftRegLEDs"
+			(at 21.59 138.9884 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "ShiftRegLEDs.kicad_sch"
+			(at 21.59 182.1946 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "6")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 114.3 17.78)
+		(size 74.93 48.26)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "d1ee20ed-b629-49e1-9e8c-80965d93307f")
+		(property "Sheetname" "ESP32Module"
+			(at 114.3 17.0684 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "ESP32Module.kicad_sch"
+			(at 114.3 66.6246 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "3")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 20.32 82.55)
+		(size 67.31 41.91)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "f7d64c99-e605-4502-9e0c-034f13d6e98e")
+		(property "Sheetname" "USBUart"
+			(at 20.32 81.8384 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "USBUart.kicad_sch"
+			(at 20.32 125.0446 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "4")
+				)
+			)
+		)
+	)
+	(sheet
+		(at 101.6 82.55)
+		(size 69.85 45.72)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(stroke
+			(width 0.1524)
+			(type solid)
+		)
+		(fill
+			(color 0 0 0 0.0000)
+		)
+		(uuid "feb2274c-dde5-4d4c-ad5e-26a68e8a4b4e")
+		(property "Sheetname" "MotorDrivers"
+			(at 101.6 81.8384 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left bottom)
+			)
+		)
+		(property "Sheetfile" "MotorDrivers.kicad_sch"
+			(at 101.6 128.8546 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left top)
+			)
+		)
+		(instances
+			(project "vertical_lift_pcb"
+				(path "/91bf8544-d106-495f-b660-f6c7322fb0ce"
+					(page "5")
+				)
+			)
+		)
+	)
+	(sheet_instances
+		(path "/"
+			(page "1")
+		)
+	)
+	(embedded_fonts no)
+)

@@ -67,3 +67,16 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# KiCad 8 Ignores
+*-backups/
+*.bck
+*.kicad_pcb-bak
+*.kicad_sch-bak
+*.kicad_prl
+*.sch-bak
+*.rpt
+*.lck
+*~
+_autosave-*
+fp-info-cache
