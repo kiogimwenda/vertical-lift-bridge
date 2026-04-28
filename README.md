@@ -4,8 +4,8 @@
 
 | Member | Name | Adm. No. | Role |
 |--------|------|----------|------|
-| M1 | Mugaisi Eugene Muruli | ENE212-0083/2020 | Firmware Lead & FSM |
-| M2 | Ochiere George John | ENE212-0218/2021 | Bridge Mechanism & Motor |
+| M1 | Ochiere George John | ENE212-0218/2021 | Firmware Lead & FSM |
+| M2 | Mugaisi Eugene | ENE212-0083/2020 | Bridge Mechanism & Motor |
 | M3 | Koech Cindy Chebet | ENE212-0069/2020 | Sensors & Detection |
 | M4 | Kirui Abigael Cherotich | ENE212-0070/2020 | Traffic, HMI & Alarm |
 | M5 | Kiogora Ian Mwenda | ENE212-0251/2021 | PCB, Power & Safety |
