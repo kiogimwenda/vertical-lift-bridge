@@ -1,6 +1,6 @@
 # Automatic Vertical Lift Bridge Control System
 
-**Group 7 | EEE 2412 Microprocessors II | JKUAT | April 2026**
+**Group 5 | EEE 2412 Microprocessors II | JKUAT | April 2026**
 
 | Member | Name | Adm. No. | Role |
 |--------|------|----------|------|

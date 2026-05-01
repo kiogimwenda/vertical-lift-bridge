@@ -80,3 +80,14 @@ Testing/
 *~
 _autosave-*
 fp-info-cache
+# Added 2026-05-01 (revised proposal branch)
+.pio/
+.vscode/
+*.bak
+firmware/.pio/
+firmware_cam/.pio/
+cad/stl/.cache/
+pcb/gerbers/*.zip
+.DS_Store
+Thumbs.db
+.idea/
