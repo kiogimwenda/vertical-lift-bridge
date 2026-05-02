@@ -86,7 +86,7 @@ namespace ui_tokens {
 // =====================================================================
 #define TFT_W 240
 #define TFT_H 320
-#define LV_BUF_LINES 40
+#define LV_BUF_LINES 20 //Changed for 40 to 20 to reduce memory usage. Adjust as needed (higher = smoother but more RAM).
 
 static TFT_eSPI    s_tft = TFT_eSPI(TFT_W, TFT_H);
 static lv_display_t* s_disp = nullptr;
