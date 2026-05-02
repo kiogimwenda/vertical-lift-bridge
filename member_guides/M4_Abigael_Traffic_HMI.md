@@ -113,7 +113,7 @@ static lv_obj_t* screen_create_boot(void) {
 
     // Group name
     lv_obj_t* title = lv_label_create(scr);
-    lv_label_set_text(title, "Vertical Lift Bridge\nGroup 5  |  EEE 2412");
+    lv_label_set_text(title, "Vertical Lift Bridge\nGroup 7  |  EEE 2412");
     extern const lv_font_t inter_24;
     lv_obj_set_style_text_font(title, &inter_24, 0);
     lv_obj_set_style_text_color(title, lv_color_hex(ui_tokens::TXT_PRIMARY), 0);

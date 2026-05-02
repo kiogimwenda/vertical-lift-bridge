@@ -1,6 +1,6 @@
 # Automatic Vertical Lift Bridge Control System
 
-**Group 5  ·  EEE 2412 Microprocessors II  ·  JKUAT  ·  May 2026**
+**Group 7  ·  EEE 2412 Microprocessors II  ·  JKUAT  ·  May 2026**
 
 A scale-model vertical-lift bridge that autonomously raises its deck for marine traffic and lowers it for road traffic, controlled by a dual-ESP32 architecture (main controller + ESP32-CAM vision companion), with a TFT operator dashboard, a hardware safety chain, and a fully parametric mechanical and electronic design.
 
@@ -47,7 +47,7 @@ A scale-model vertical-lift bridge that autonomously raises its deck for marine 
 
 Every member has a dedicated walkthrough in [`member_guides/`](./member_guides/) — open yours **before** writing any code or running any tool.
 
-**File-ownership convention.** When a file lives inside a member's primary directory, that member is the **owner** — they make the calls on design and implementation. Any pull request that modifies an owner's file requires their review approval. The two cross-cutting exceptions are `firmware/src/system_types.h` and `firmware/src/pin_config.h`: M1 has authority over both, but every member is a required reviewer because changes to either ripple across the codebase.
+**File-ownership convention.** When a file lives inside a member's primary directory, that member is the **owner** — they make the calls on design and implementation. If you need to edit a file in someone else's directory, coordinate with them in the group chat first. The two cross-cutting files are `firmware/src/system_types.h` and `firmware/src/pin_config.h`: M1 has authority over both, but notify the group before changing either because changes ripple across the codebase.
 
 ---
 
@@ -128,7 +128,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 | Power | 12 V/3 A barrel input, LM2596 12→5 V buck, AMS1117 5→3.3 V LDO | TVS, polyfuse, Schottky reverse-protection |
 | Compute | ESP32-WROOM-32E DevKit (main), ESP32-CAM AI-Thinker (vision) | CAM 5 V from a separate buck — never share with main |
 
-Procurement targets Kenyan suppliers — full priced list in [`bom/VLB_Group5_BOM.xlsx`](./bom/VLB_Group5_BOM.xlsx). Grand total **KES 24,465**, broken into Mechanical (12,510), Electronics + TFT + CAM (5,995), PCB Fab (4,110), and Consumables (1,850). All formulas are live — change a unit price or quantity and the spreadsheet recalculates.
+Procurement targets Kenyan suppliers — full priced list in [`bom/VLB_Group7_BOM.xlsx`](./bom/VLB_Group7_BOM.xlsx). Grand total **KES 24,465**, broken into Mechanical (12,510), Electronics + TFT + CAM (5,995), PCB Fab (4,110), and Consumables (1,850). All formulas are live — change a unit price or quantity and the spreadsheet recalculates.
 
 ---
 
@@ -171,7 +171,7 @@ vertical-lift-bridge/
 ├── .gitignore                   # PlatformIO + KiCad + IDE temp files
 │
 ├── bom/                         ◄── M5 owner
-│   └── VLB_Group5_BOM.xlsx      # 51 line items, 4 sections, KES totals
+│   └── VLB_Group7_BOM.xlsx      # 51 line items, 4 sections, KES totals
 │
 ├── cad/                         ◄── M2 owner
 │   ├── README_cad.md            # Print order, slicer profile, materials
@@ -258,7 +258,7 @@ vertical-lift-bridge/
 
 **Empty directories** (`firmware/include/`, `firmware/lib/`, `firmware/test/`) are placeholders held in Git via `.gitkeep`. They are wired into the PlatformIO build path so any file dropped into them compiles automatically.
 
-**Don't edit on `main` directly.** Every change goes through a feature branch and a pull request — see [§13 Day-to-Day Git Workflow](#13-day-to-day-git-workflow).
+**We work directly on `main`** — this is a single-branch repository to keep things simple. See [§13 Day-to-Day Git Workflow](#13-day-to-day-git-workflow).
 
 ---
 
@@ -271,7 +271,7 @@ vertical-lift-bridge/
 | See the electronics spec | [`docs/05_electronics_design.md`](./docs/05_electronics_design.md) |
 | Understand why the design changed | [`docs/audit_report.md`](./docs/audit_report.md) |
 | Print the parts | [`cad/README_cad.md`](./cad/README_cad.md) |
-| Procure components | [`bom/VLB_Group5_BOM.xlsx`](./bom/VLB_Group5_BOM.xlsx) |
+| Procure components | [`bom/VLB_Group7_BOM.xlsx`](./bom/VLB_Group7_BOM.xlsx) |
 | Know which GPIO does what | [`firmware/src/pin_config.h`](./firmware/src/pin_config.h) |
 | Know which states/events the FSM uses | [`firmware/src/system_types.h`](./firmware/src/system_types.h) |
 | Customise the operator dashboard | [`firmware/src/hmi/display.cpp`](./firmware/src/hmi/display.cpp) and the M4 guide |
@@ -293,7 +293,7 @@ These are the canonical versions every member should install. Mismatched version
 | Arduino IDE | 2.3.x | Easier ESP32-CAM upload than PIO | M3 |
 | OpenSCAD | 2021.01 or newer | Edit `.scad` files | M2, M5 |
 | PrusaSlicer | 2.7.x | Convert STL to G-code | M2 |
-| KiCad | 8.0.x | Schematic + PCB editor | M5 (and reviewers of M5's PRs) |
+| KiCad | 8.0.x | Schematic + PCB editor | M5 |
 
 Skip what doesn't apply to you — for example, M4 doesn't need KiCad, M5 doesn't need a slicer.
 
@@ -311,7 +311,7 @@ This is the sequential checklist for a member who just got added to the repo. Ea
 - [ ] **Step 6.** Install the rest of the tools you need from [§8](#8-tools-and-software-you-need) (PlatformIO if you touch firmware, KiCad if you're M5, OpenSCAD if you're M2, etc.).
 - [ ] **Step 7.** Open your guide in `member_guides/` and follow the role-specific setup steps inside it.
 - [ ] **Step 8.** Read [§13 Day-to-Day Git Workflow](#13-day-to-day-git-workflow) end-to-end before making your first change.
-- [ ] **Step 9.** Make a tiny test change (fix a typo in your member guide), open a PR, get it reviewed, merge it. This validates your whole setup. Don't skip — the time to discover that your auth is broken is on your first commit, not on a deadline night.
+- [ ] **Step 9.** Make a tiny test change (fix a typo in your member guide), commit it, and push to `main`. This validates your whole setup. Don't skip — the time to discover that your auth is broken is on your first commit, not on a deadline night.
 - [ ] **Step 10.** Post in the group chat: "I'm set up — onto real work."
 
 ---
@@ -567,61 +567,39 @@ This pulls any commits other members have merged since you last looked. Skipping
 
 ## 13. Day-to-Day Git Workflow
 
-We use a **trunk-based workflow with feature branches and pull requests**. The rule is simple: **`main` is always green** (compiles and works), and the only way code gets onto it is through a reviewed PR.
+We use a **single-branch workflow** — everyone works directly on `main`. This keeps things simple for a small team where most members are new to Git. No branches, no pull requests, no merge conflicts from stale branches.
 
 ### 13.1 The Cycle
 
 ```
         ┌─────────────────────────────────────────────┐
-        │           1. git pull origin main           │
+        │       1. git pull origin main               │
+        │       (ALWAYS do this before you start)     │
         └───────────────────┬─────────────────────────┘
                             ▼
         ┌─────────────────────────────────────────────┐
-        │      2. git checkout -b feat/your-thing     │
+        │  2. Edit files, build, test on bench        │
         └───────────────────┬─────────────────────────┘
                             ▼
         ┌─────────────────────────────────────────────┐
-        │  3. Edit files, build, test on bench        │
+        │     3. git add <files> && git commit -m "…" │
         └───────────────────┬─────────────────────────┘
                             ▼
         ┌─────────────────────────────────────────────┐
-        │     4. git add . && git commit -m "..."     │
+        │       4. git pull origin main               │
+        │       (catch anything pushed while you      │
+        │        were working — resolve conflicts     │
+        │        if any)                              │
         └───────────────────┬─────────────────────────┘
                             ▼
         ┌─────────────────────────────────────────────┐
-        │       5. git push origin feat/your-thing    │
-        └───────────────────┬─────────────────────────┘
-                            ▼
-        ┌─────────────────────────────────────────────┐
-        │  6. Open Pull Request on github.com         │
-        └───────────────────┬─────────────────────────┘
-                            ▼
-        ┌─────────────────────────────────────────────┐
-        │  7. Reviewer approves → squash-merge        │
-        └───────────────────┬─────────────────────────┘
-                            ▼
-        ┌─────────────────────────────────────────────┐
-        │  8. Delete the branch (locally + on remote) │
+        │       5. git push origin main               │
         └─────────────────────────────────────────────┘
 ```
 
-### 13.2 Branch Naming Convention
+**The golden rule: always pull before you push.** This avoids most conflicts. If two people edit the same file at the same time, Git will ask you to resolve the conflict — open VS Code's merge editor and pick the right lines.
 
-Branch names follow `<type>/<short-description>`:
-
-- `feat/...` — new functionality (new module, new screen, new mechanism part).
-- `fix/...` — bug fix.
-- `docs/...` — documentation only, no code change.
-- `chore/...` — tooling, build config, dependency bumps.
-- `refactor/...` — code restructure with no behaviour change.
-
-Examples already used in this repo:
-- `feat/firmware-fsm`
-- `feat/cad-vertical-lift`
-- `docs/comprehensive-readme`
-- `feat/firmware-hmi-template`
-
-### 13.3 Commit Message Convention
+### 13.2 Commit Message Convention
 
 Use **Conventional Commits** — every message starts with a type, then a colon, then a short imperative sentence. The scope (in parentheses) clarifies which module:
 
@@ -644,62 +622,17 @@ Anti-patterns:
 - ❌ `asdf`
 - ✅ `firmware(fsm): correct transition from RAISED_HOLD on EVT_HOLD_TIMEOUT`
 
-### 13.4 Pull Request Etiquette
-
-When opening a PR on GitHub:
-
-1. **Title**: same form as your commit message (e.g. `feat(motor): closed-loop position with PI controller`).
-2. **Description**: include
-   - **What** the change does (1–3 bullets).
-   - **Why** it's needed.
-   - **How to test it** — exact commands or bench steps.
-   - Screenshots if it touches the dashboard.
-3. **Reviewers**: tag the owner of every directory you touched (see §1 ownership table). At minimum one approval required.
-4. **Labels**: optional, but `firmware`, `cad`, `pcb`, `docs` help filter.
-5. **Don't merge your own PR.** Wait for a reviewer.
-
-When **reviewing** someone else's PR:
-- Pull the branch locally and at least skim-read the diff.
-- For firmware changes that affect hardware: verify on bench if you have it.
-- Comment on specific lines rather than the PR description — easier to thread.
-- Approve only if you'd be comfortable shipping the change to the demo.
-
-### 13.5 Merging
-
-We use **squash-merge** for every PR. This collapses all commits in the branch into a single commit on `main`. Why:
-
-- `main` history stays clean — one commit per logical feature.
-- Rolling back a feature = reverting one commit, not five.
-- Members aren't penalised for messy WIP commits during development.
-
-GitHub does this for you when you click the green button. The squash commit message defaults to the PR title; edit it if needed.
-
-### 13.6 Deleting Merged Branches
-
-After merge:
-
-1. On GitHub: click "Delete branch" — the button appears next to the merged PR.
-2. Locally:
-   ```sh
-   git checkout main
-   git pull origin main
-   git branch -d feat/your-thing
-   ```
-
-Don't keep stale branches around — they confuse future-you.
-
-### 13.7 What If I Make a Mistake?
+### 13.3 What If I Make a Mistake?
 
 | Mistake | Fix |
 |---------|-----|
-| Committed to `main` directly | Don't push. Run `git reset --soft HEAD~1`, then make a branch and re-commit there |
-| Pushed to `main` directly | Tell the group **immediately**. M1 will revert it. Don't try to fix it yourself |
-| Forgot to pull before branching off `main` — branch is now stale | `git checkout main && git pull && git checkout your-branch && git rebase main` |
-| Merge conflict on rebase | Resolve in VS Code's merge editor → `git add .` → `git rebase --continue` |
-| PR rejected, need to update | Push more commits to the same branch — the PR auto-updates |
+| Pushed something broken to `main` | Tell the group **immediately**. Run `git revert HEAD` to undo the last commit, then push the revert |
+| `git push` rejected ("non-fast-forward") | You forgot to pull first. Run `git pull origin main`, resolve any conflicts, then push again |
+| Merge conflict after pulling | Open VS Code's merge editor, pick the right lines, then `git add .` and `git commit` |
 | Want to undo a local change before commit | `git checkout -- path/to/file` (discards changes to that file) |
+| Accidentally deleted a file | `git checkout -- path/to/file` to restore it from the last commit |
 
-If you ever run a command and it gives you a warning about `--force` or losing history, **stop and ask in the group chat**. Force-pushing is a last resort and rarely the right answer.
+If you ever run a command and it gives you a warning about `--force` or losing history, **stop and ask in the group chat**. Force-pushing is never the right answer for us.
 
 ---
 
@@ -739,7 +672,7 @@ Or VS Code: **Project Tasks** → **vlb_main** → **General** → **Monitor**.
 The expected boot sequence:
 
 ```
-=== VLB Group 5 — Boot ===
+=== VLB Group 7 — Boot ===
 ESP32 SDK: vX.Y.Z | Sketch: <date>
 [wdt] init OK (5s hw, 1.5s sw)
 [fault] init OK
@@ -835,11 +768,11 @@ A one-line "what to type in the terminal each time you start work" for each memb
 
 | Member | First-time setup | Daily |
 |--------|------------------|-------|
-| M1 | `cd firmware && pio run` | `git pull → branch → edit fsm/ → build → push → PR` |
-| M2 | Install OpenSCAD + PrusaSlicer | `git pull → branch → edit cad/scad/ or motor/ → push` |
+| M1 | `cd firmware && pio run` | `git pull → edit fsm/ → build → commit → push` |
+| M2 | Install OpenSCAD + PrusaSlicer | `git pull → edit cad/scad/ or motor/ → commit → push` |
 | M3 | Install Arduino IDE + ESP32 board package | `cd firmware_cam && pio run -t upload` for vision; `firmware/` for sensors |
 | M4 | Install PlatformIO; bookmark LVGL converters | `cd firmware && pio run` after editing hmi/ or traffic/ |
-| M5 | Install KiCad 8 + JLCPCB plugin | `git pull → branch → edit pcb/ or safety/ → push` |
+| M5 | Install KiCad 8 + JLCPCB plugin | `git pull → edit pcb/ or safety/ → commit → push` |
 
 ---
 
@@ -858,9 +791,9 @@ For anything that needs to be tracked across days. Things that should be issues,
 
 Don't put these in the chat alone — chat history evaporates, issues persist.
 
-### 18.3 PR Discussions
+### 18.3 GitHub Issues
 
-Implementation choices, code review, "should we use `lv_arc` or `lv_meter` for current?". Discuss on the PR itself, not in chat — that way the rationale is preserved next to the code.
+For design discussions and implementation choices ("should we use `lv_arc` or `lv_meter` for current?"), open an issue so the rationale is preserved — chat history evaporates, issues persist.
 
 ### 18.4 Escalation Path
 
@@ -902,7 +835,7 @@ Print this and tick boxes the morning of.
 | PlatformIO "Connecting…" timeout on upload | Auto-reset failed | Hold BOOT, press EN, release BOOT, retry |
 | Boot loops with `Brownout detector triggered` | USB hub or PC port underpowering | Use a powered hub or directly into a PC port |
 | Build fails with `fatal error: lvgl.h: No such file` | Library not yet downloaded | First `pio run` downloads libs — wait for it; or run `pio pkg install` |
-| KiCad complains about missing footprint | Library tables not configured | KiCad → Preferences → Manage Footprint Libraries → re-add `kicad-jlcpcb-tools` |
+| KiCad complains about missing footprint | Library tables not configured | KiCad  → Preferences → Manage Footprint Libraries → re-add `kicad-jlcpcb-tools` |
 | OpenSCAD `cannot find module` | Renamed/moved a `.scad` file | `include <00_common.scad>` — paths in `.scad` are relative |
 | Repo is multi-GB after a few weeks | Someone committed a huge file | Don't commit STL files larger than 50 MB; split, or use Git LFS — ask M1 |
 | `firmware/.pio/` keeps appearing in `git status` | Missing in `.gitignore` | Should already be there; pull main to refresh |
@@ -927,9 +860,7 @@ For deeper firmware debugging, every module logs to Serial with a `[xxx]` prefix
 | OV2640 | The 2 MP camera sensor on the ESP32-CAM |
 | MGN12 | A 12 mm-wide miniature linear rail |
 | Hall encoder | Magnetic rotary encoder built into the JGA25-370 motor |
-| PR | Pull Request — proposed change submitted on GitHub for review |
 | PAT | Personal Access Token — GitHub's password-replacement for HTTPS auth |
-| Squash-merge | Collapsing all branch commits into one when merging to `main` |
 | Counts/mm | Encoder pulses per millimetre of deck travel — the calibration constant |
 | ROI | Region Of Interest — the patch of the camera frame where motion is checked |
 
@@ -937,8 +868,8 @@ For deeper firmware debugging, every module logs to Serial with a `[xxx]` prefix
 
 ## 22. License
 
-MIT. See [`LICENSE`](./LICENSE) if present, otherwise this work is © 2026 Group 5, JKUAT, EEE 2412 Microprocessors II, released under MIT terms.
+MIT. See [`LICENSE`](./LICENSE) if present, otherwise this work is © 2026 Group 7, JKUAT, EEE 2412 Microprocessors II, released under MIT terms.
 
 ---
 
-> **Maintainer note:** this README is the entry point for every new member. If you change the repo structure, update §6. If you change the workflow, update §13. If a new tool becomes necessary, update §8. Don't let it drift.
+> **Maintainer note:** this README is the entry point for every new member. If you change the repo structure, update §6. If you change the workflow, update §13. If a new tool becomes necessary, update §8. This is a single-branch repo — everything goes directly to `main`. Don't let the docs drift.

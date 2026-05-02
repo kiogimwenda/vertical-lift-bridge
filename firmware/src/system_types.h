@@ -1,5 +1,5 @@
 // ============================================================================
-// system_types.h — Vertical Lift Bridge Control System (Group 5)
+// system_types.h — Vertical Lift Bridge Control System (Group 7)
 // Shared enums, structs, and constants used across all firmware modules.
 // Owner: George (M1 — System & FSM) | Reviewers: All
 // ============================================================================

@@ -1,5 +1,5 @@
 // ============================================================================
-// main.cpp — Vertical Lift Bridge Control System (Group 5)
+// main.cpp — Vertical Lift Bridge Control System (Group 7)
 // Entry point. Initialises peripherals, creates FreeRTOS tasks, mutex, queues.
 // Owner: George (M1)
 // ============================================================================
@@ -93,7 +93,7 @@ extern void task_hmi(void* arg);
 void setup() {
     Serial.begin(115200);
     delay(200);
-    Serial.println("\n\n=== VLB Group 5 — Boot ===");
+    Serial.println("\n\n=== VLB Group 7 — Boot ===");
     Serial.printf("ESP32 SDK: %s | Sketch: %s\n",
                   ESP.getSdkVersion(), __DATE__);
 

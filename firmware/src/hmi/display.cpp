@@ -156,7 +156,7 @@ static lv_obj_t* screen_create_boot(void) {
     lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
 
     lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "VLB Group 5\nBooting...");
+    lv_label_set_text(lbl, "VLB Group 7\nBooting...");
     lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::TXT_PRIMARY), 0);
     lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
 

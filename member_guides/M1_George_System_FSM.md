@@ -134,7 +134,7 @@ You don't need motors or sensors connected for this — just the bare ESP32 + US
 3. After "Hard resetting…" you'll see the boot banner.
 4. Click **Monitor** (plug icon). Expected log:
    ```
-   === VLB Group 5 — Boot ===
+   === VLB Group 7 — Boot ===
    ESP32 SDK: v4.4.x | Sketch: ...
    [wdt] init OK (5s hw, 1.5s sw)
    [fault] init OK
