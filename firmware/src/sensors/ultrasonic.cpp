@@ -1,13 +1,18 @@
 // ============================================================================
-// sensors/ultrasonic.cpp — Dual HC-SR04 beams for vehicle range + direction.
+// sensors/ultrasonic.cpp — Quad HC-SR04 beams for vessel direction detection.
 // Owner: M3 Cindy
 //
-// Two HC-SR04 modules mounted ULTRASONIC_BEAM_SPACING_CM apart along the
-// approach lane. Sequence of trigger reveals direction:
-//   A blocked first, then B  -> APPROACHING
-//   B blocked first, then A  -> LEAVING
-// Echo measurement uses pulseIn() with timeout = 25 ms (~4 m max).
-// At 20 Hz tick (50 ms) one trigger per sensor per cycle, alternating.
+// Four HC-SR04 modules in two pairs:
+//   Upstream pair  (US1 = Beam A, US2 = Beam B) — detects vessels from upstream
+//   Downstream pair (US3 = Beam A, US4 = Beam B) — detects vessels from downstream
+//
+// Within each pair the sensors are spaced ULTRASONIC_BEAM_SPACING_CM (3 cm)
+// apart. Beam-arrival order reveals direction:
+//   A blocked first, then B  -> APPROACHING (vessel heading toward bridge)
+//   B blocked first, then A  -> LEAVING     (vessel heading away from bridge)
+//
+// Sensors are measured in round-robin: US1 -> US2 -> US3 -> US4 -> repeat.
+// At 20 Hz tick each sensor is read every 200 ms.
 // ============================================================================
 #include "ultrasonic.h"
 #include "../pin_config.h"
@@ -17,10 +22,12 @@
 
 static UltrasonicStatus_t s_us = {};
 
-// History for direction inference (keep last 5 samples).
+// History ring for direction inference (5 samples per pair).
 #define DIR_HIST 5
-static uint8_t s_hist_blocked_a[DIR_HIST] = {0};
-static uint8_t s_hist_blocked_b[DIR_HIST] = {0};
+static uint8_t s_hist_up_a[DIR_HIST]   = {0};
+static uint8_t s_hist_up_b[DIR_HIST]   = {0};
+static uint8_t s_hist_down_a[DIR_HIST] = {0};
+static uint8_t s_hist_down_b[DIR_HIST] = {0};
 static uint8_t s_hist_idx = 0;
 
 static uint16_t measure_cm(uint8_t trig_pin, uint8_t echo_pin) {
@@ -32,80 +39,129 @@ static uint16_t measure_cm(uint8_t trig_pin, uint8_t echo_pin) {
 
     unsigned long us = pulseIn(echo_pin, HIGH, 25000UL);   // 25 ms timeout
     if (us == 0) return 0xFFFF;                            // No echo
-    // Speed of sound 343 m/s -> 0.0343 cm/us, round-trip => /58.0
     return (uint16_t)(us / 58UL);
 }
 
+// Scan a history ring and return the index of the first 0->1 transition,
+// or -1 if no rising edge found.
+static int find_first_rising(const uint8_t* hist, uint8_t start) {
+    uint8_t prev = 0;
+    for (int i = 0; i < DIR_HIST; i++) {
+        int idx = (start + i) % DIR_HIST;
+        if (hist[idx] && !prev) return i;
+        prev = hist[idx];
+    }
+    return -1;
+}
+
+// Infer direction for one pair given its A and B history rings.
+static VehicleDirection_t infer_direction(const uint8_t* hist_a,
+                                          const uint8_t* hist_b,
+                                          uint8_t start) {
+    int a_first = find_first_rising(hist_a, start);
+    int b_first = find_first_rising(hist_b, start);
+
+    if (a_first >= 0 && b_first >= 0) {
+        if      (a_first < b_first) return DIR_APPROACHING;
+        else if (b_first < a_first) return DIR_LEAVING;
+        else                        return DIR_BOTH;
+    } else if (a_first >= 0 || b_first >= 0) {
+        return (a_first >= 0) ? DIR_APPROACHING : DIR_LEAVING;
+    }
+    return DIR_NONE;
+}
+
 void sensors_ultrasonic_init(void) {
-    pinMode(PIN_US_TRIG_A, OUTPUT);
-    pinMode(PIN_US_ECHO_A, INPUT);
-    pinMode(PIN_US_TRIG_B, OUTPUT);
-    pinMode(PIN_US_ECHO_B, INPUT);
-    digitalWrite(PIN_US_TRIG_A, LOW);
-    digitalWrite(PIN_US_TRIG_B, LOW);
-    Serial.println("[us] init OK");
+    pinMode(PIN_US1_TRIG, OUTPUT);
+    pinMode(PIN_US1_ECHO, INPUT);
+    pinMode(PIN_US2_TRIG, OUTPUT);
+    pinMode(PIN_US2_ECHO, INPUT);
+    pinMode(PIN_US3_TRIG, OUTPUT);
+    pinMode(PIN_US3_ECHO, INPUT);
+    pinMode(PIN_US4_TRIG, OUTPUT);
+    pinMode(PIN_US4_ECHO, INPUT);
+    digitalWrite(PIN_US1_TRIG, LOW);
+    digitalWrite(PIN_US2_TRIG, LOW);
+    digitalWrite(PIN_US3_TRIG, LOW);
+    digitalWrite(PIN_US4_TRIG, LOW);
+    Serial.println("[us] init OK (4 sensors, upstream + downstream)");
 }
 
 void sensors_ultrasonic_tick(void) {
-    // Alternate: even ticks measure A, odd ticks measure B.
+    // Round-robin: cycle through US1 -> US2 -> US3 -> US4.
     static uint32_t s_n = 0;
+    uint8_t slot = s_n % 4;
     s_n++;
-    if ((s_n & 1) == 0) {
-        s_us.distance_a_cm = measure_cm(PIN_US_TRIG_A, PIN_US_ECHO_A);
-        s_us.beam_a_blocked = (s_us.distance_a_cm < ULTRASONIC_TRIGGER_CM);
-    } else {
-        s_us.distance_b_cm = measure_cm(PIN_US_TRIG_B, PIN_US_ECHO_B);
-        s_us.beam_b_blocked = (s_us.distance_b_cm < ULTRASONIC_TRIGGER_CM);
+
+    switch (slot) {
+    case 0:
+        s_us.distance_us1_cm = measure_cm(PIN_US1_TRIG, PIN_US1_ECHO);
+        break;
+    case 1:
+        s_us.distance_us2_cm = measure_cm(PIN_US2_TRIG, PIN_US2_ECHO);
+        break;
+    case 2:
+        s_us.distance_us3_cm = measure_cm(PIN_US3_TRIG, PIN_US3_ECHO);
+        break;
+    case 3:
+        s_us.distance_us4_cm = measure_cm(PIN_US4_TRIG, PIN_US4_ECHO);
+        break;
     }
 
-    // Push to history ring
-    s_hist_blocked_a[s_hist_idx] = s_us.beam_a_blocked ? 1 : 0;
-    s_hist_blocked_b[s_hist_idx] = s_us.beam_b_blocked ? 1 : 0;
+    // Determine blocked state for each beam
+    bool up_a  = (s_us.distance_us1_cm < ULTRASONIC_TRIGGER_CM);
+    bool up_b  = (s_us.distance_us2_cm < ULTRASONIC_TRIGGER_CM);
+    bool dn_a  = (s_us.distance_us3_cm < ULTRASONIC_TRIGGER_CM);
+    bool dn_b  = (s_us.distance_us4_cm < ULTRASONIC_TRIGGER_CM);
+
+    s_us.upstream_blocked   = up_a || up_b;
+    s_us.downstream_blocked = dn_a || dn_b;
+
+    // Push to history rings
+    s_hist_up_a[s_hist_idx]   = up_a ? 1 : 0;
+    s_hist_up_b[s_hist_idx]   = up_b ? 1 : 0;
+    s_hist_down_a[s_hist_idx] = dn_a ? 1 : 0;
+    s_hist_down_b[s_hist_idx] = dn_b ? 1 : 0;
     s_hist_idx = (s_hist_idx + 1) % DIR_HIST;
 
-    // Direction inference: find which beam transitioned 0->1 first.
-    int a_first = -1, b_first = -1;
-    uint8_t a_prev = 0, b_prev = 0;
-    for (int i = 0; i < DIR_HIST; i++) {
-        int idx = (s_hist_idx + i) % DIR_HIST;
-        if (s_hist_blocked_a[idx] && !a_prev && a_first < 0) a_first = i;
-        if (s_hist_blocked_b[idx] && !b_prev && b_first < 0) b_first = i;
-        a_prev = s_hist_blocked_a[idx];
-        b_prev = s_hist_blocked_b[idx];
-    }
-    if (a_first >= 0 && b_first >= 0) {
-        if      (a_first < b_first) s_us.direction = DIR_APPROACHING;
-        else if (b_first < a_first) s_us.direction = DIR_LEAVING;
-        else                        s_us.direction = DIR_BOTH;
-    } else if (a_first >= 0 || b_first >= 0) {
-        s_us.direction = (a_first >= 0) ? DIR_APPROACHING : DIR_LEAVING;
-    } else {
-        s_us.direction = DIR_NONE;
-    }
+    // Direction inference per pair
+    s_us.upstream_direction   = infer_direction(s_hist_up_a,   s_hist_up_b,   s_hist_idx);
+    s_us.downstream_direction = infer_direction(s_hist_down_a, s_hist_down_b, s_hist_idx);
+
+    // Combined: vessel approaching from either side triggers bridge opening
+    s_us.vessel_approaching = (s_us.upstream_direction   == DIR_APPROACHING)
+                           || (s_us.downstream_direction == DIR_APPROACHING);
+
     s_us.last_update_ms = millis();
 
-    // Both timeouts -> sensor failure flag
-    bool both_dead = (s_us.distance_a_cm == 0xFFFF && s_us.distance_b_cm == 0xFFFF);
+    // Fault: all four sensors dead
+    bool all_dead = (s_us.distance_us1_cm == 0xFFFF)
+                 && (s_us.distance_us2_cm == 0xFFFF)
+                 && (s_us.distance_us3_cm == 0xFFFF)
+                 && (s_us.distance_us4_cm == 0xFFFF);
 
-    // Push to shared status + emit events
-    static bool s_was_blocked = false;
-    bool now_blocked = s_us.beam_a_blocked || s_us.beam_b_blocked;
+    // Edge detection for FSM events
+    static bool s_was_approaching = false;
+    bool now_approaching = s_us.vessel_approaching;
 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.ultrasonic = s_us;
-        if (both_dead) SET_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
-        else           CLR_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
+        if (all_dead) SET_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
+        else          CLR_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
         xSemaphoreGive(g_status_mutex);
     }
 
-    if (now_blocked && !s_was_blocked) {
+    if (now_approaching && !s_was_approaching) {
         SystemEvent_t e = EVT_VEHICLE_DETECTED;
         xQueueSend(g_event_queue, &e, 0);
-    } else if (!now_blocked && s_was_blocked) {
-        SystemEvent_t e = EVT_VEHICLE_CLEARED;
-        xQueueSend(g_event_queue, &e, 0);
+    } else if (!now_approaching && s_was_approaching) {
+        // Only clear when no pair reports any blockage
+        if (!s_us.upstream_blocked && !s_us.downstream_blocked) {
+            SystemEvent_t e = EVT_VEHICLE_CLEARED;
+            xQueueSend(g_event_queue, &e, 0);
+        }
     }
-    s_was_blocked = now_blocked;
+    s_was_approaching = now_approaching;
 }
 
 UltrasonicStatus_t sensors_ultrasonic_get(void) { return s_us; }

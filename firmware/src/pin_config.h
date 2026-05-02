@@ -36,6 +36,9 @@
 #define PIN_TOUCH_IRQ        36     // input-only ADC1_CH0; falling edge = pen down
 
 // ====================== ULTRASONICS (HC-SR04 ×4) ====================
+// Two pairs: upstream (US1+US2) and downstream (US3+US4).
+// Within each pair, Beam A and Beam B are spaced 3 cm apart for
+// direction inference (which beam is blocked first).
 #define PIN_US1_TRIG          5     // upstream Beam A
 #define PIN_US1_ECHO         18
 #define PIN_US2_TRIG         19     // upstream Beam B

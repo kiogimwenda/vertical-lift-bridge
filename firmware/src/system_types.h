@@ -105,23 +105,34 @@ typedef struct {
 } VisionStatus_t;
 
 // ----------------------------------------------------------------------------
-// Ultrasonic dual-beam direction sensor result.
+// Ultrasonic quad-sensor direction detection.
+// Two pairs (upstream US1+US2, downstream US3+US4), each with beams A and B
+// spaced 3 cm apart. Beam-arrival order within a pair reveals vessel direction.
 // Owner: M3 Cindy (sensors/ultrasonic.cpp).
 // ----------------------------------------------------------------------------
 typedef enum : uint8_t {
     DIR_NONE = 0,
-    DIR_APPROACHING,          // Beam A then beam B triggered
-    DIR_LEAVING,              // Beam B then beam A triggered
-    DIR_BOTH                  // Stationary in zone or two vehicles
+    DIR_APPROACHING,          // Vessel moving toward the bridge
+    DIR_LEAVING,              // Vessel moving away from the bridge
+    DIR_BOTH                  // Stationary in zone or two vessels
 } VehicleDirection_t;
 
 typedef struct {
-    uint16_t          distance_a_cm;   // 0..400, 0xFFFF = no echo
-    uint16_t          distance_b_cm;
-    bool              beam_a_blocked;  // Within trigger threshold (default 80cm)
-    bool              beam_b_blocked;
-    VehicleDirection_t direction;
-    uint32_t          last_update_ms;
+    // Upstream pair (US1 = Beam A, US2 = Beam B)
+    uint16_t           distance_us1_cm;   // 0..400, 0xFFFF = no echo
+    uint16_t           distance_us2_cm;
+    bool               upstream_blocked;  // Either US1 or US2 within range
+    VehicleDirection_t upstream_direction;
+
+    // Downstream pair (US3 = Beam A, US4 = Beam B)
+    uint16_t           distance_us3_cm;
+    uint16_t           distance_us4_cm;
+    bool               downstream_blocked;
+    VehicleDirection_t downstream_direction;
+
+    // Combined decision
+    bool               vessel_approaching; // true if either side says APPROACHING
+    uint32_t           last_update_ms;
 } UltrasonicStatus_t;
 
 // ----------------------------------------------------------------------------
@@ -195,7 +206,7 @@ typedef struct {
 #define BARRIER_TIMEOUT_MS          1500
 #define HOLD_TIMEOUT_MS             8000     // Raised-hold for boat passage
 #define ULTRASONIC_TRIGGER_CM       80
-#define ULTRASONIC_BEAM_SPACING_CM  30       // For direction inference
+#define ULTRASONIC_BEAM_SPACING_CM  3        // Gap between Beam A and B within each pair
 #define VISION_HEARTBEAT_TIMEOUT_MS 2000
 #define WATCHDOG_KICK_PERIOD_MS     500
 #define WATCHDOG_MAX_INTERVAL_MS    1500
