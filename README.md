@@ -58,11 +58,12 @@ The system runs a complete bridge-opening cycle without human input. In plain En
 1. The system sits in **idle state** with the bridge deck down, traffic lights green for road traffic, red for marine traffic.
 2. **Vehicle detection.** When a model vehicle approaches, the ESP32-CAM running frame-difference motion detection raises a vehicle flag over a UART link, and dual HC-SR04 ultrasonic sensors confirm direction (approaching vs. leaving) using beam-arrival timing on a five-sample history ring.
 3. **Stop the road.** Traffic lights cycle green → amber → red. Servo barriers swing down. A buzzer chirps twice as a courtesy alert.
-4. **Verify clearance.** The system confirms both barriers reached their down position and no vehicle remains in the bridge zone before raising.
-5. **Raise the bridge.** A JGA25-370 12 V gearmotor drives a Ø30 mm aluminium drum, winding cables that lift the deck. Two 120 g counterweights run on opposite cables over top pulleys to balance the deck mass. A Hall-effect encoder on the motor shaft tracks deck height in millimetres.
-6. **Hold for marine traffic.** When the top limit switch trips, the motor brakes electronically (BTS7960 dynamic short brake). Marine traffic lights turn green. The bridge holds for 8 seconds (`HOLD_TIMEOUT_MS`, configurable in `system_types.h`).
-7. **Lower the bridge.** The motor drives down at lower duty (gravity-assisted) until the bottom limit switch trips. Counts/mm calibration auto-zeroes the encoder at the bottom.
-8. **Reopen the road.** Barriers raise, traffic lights cycle amber → green for road, red for marine. The system returns to idle.
+4. **Balance counterweights.** A simulated dynamic counterweight system models two water tanks being filled/drained by pumps and valves to balance the deck mass. The firmware simulates water levels, pump status, and drain valve state — all visualised in real time on the TFT dashboard. The physical counterweights remain static (lead-filled boxes); the simulation runs in parallel for demonstration purposes. The FSM waits for the simulated counterweights to report "balanced" before proceeding.
+5. **Verify clearance.** The system confirms both barriers reached their down position, no vehicle remains in the bridge zone, and the simulated counterweights are balanced before raising.
+6. **Raise the bridge.** A JGA25-370 12 V gearmotor drives a Ø30 mm aluminium drum, winding cables that lift the deck. Two 120 g static counterweights run on opposite cables over top pulleys to balance the deck mass. A Hall-effect encoder on the motor shaft tracks deck height in millimetres.
+7. **Hold for marine traffic.** When the top limit switch trips, the motor brakes electronically (BTS7960 dynamic short brake). Marine traffic lights turn green. The bridge holds for 8 seconds (`HOLD_TIMEOUT_MS`, configurable in `system_types.h`).
+8. **Lower the bridge.** The motor drives down at lower duty (gravity-assisted) until the bottom limit switch trips. Counts/mm calibration auto-zeroes the encoder at the bottom.
+9. **Reopen the road.** Barriers raise, traffic lights cycle amber → green for road, red for marine. The system returns to idle.
 
 A 2.8-inch TFT touch dashboard mirrors the system state in real time and provides operator controls (manual raise/lower, fault clear, brightness, screen navigation). A mushroom emergency-stop button cuts motor power through a hardware relay independent of the firmware. A 16-flag fault register catches stalls, overcurrent, undervoltage, sensor link loss, watchdog timeouts, and barrier reach failures.
 
@@ -120,7 +121,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 |-----------|------------|-------|
 | Frame | 2× printed towers, MGN12 200 mm rails, MDF base 1200 × 600 × 12 mm | Towers PLA, 40% gyroid infill |
 | Drive | JGA25-370 12 V gearmotor, Ø30 mm aluminium drum, 1 mm braided steel cable | ~600 mA nominal at full lift |
-| Counterweights | 2× printed boxes, 4× 30 g lead, 608ZZ pulley bearings, M8×80 axles | 120 g per side balances 240 g deck |
+| Counterweights | 2× printed boxes, 4× 30 g lead, 608ZZ pulley bearings, M8×80 axles | 120 g per side (static). Firmware simulates dynamic water-tank counterweights with pump/drain — displayed on TFT |
 | Sensors | 2× HC-SR04 ultrasonics, ESP32-CAM OV2640, 4× KW11-3Z limit switches | Ultrasonic ECHO line via 1 kΩ/2 kΩ divider — 5 V down to 3.3 V |
 | Actuators | 2× SG90 servos (barriers), 6× SMD LEDs (traffic), passive piezo buzzer | LEDs driven by 74HC595 chain |
 | Display | ILI9341 2.8" 240×320 TFT + XPT2046 touch | HSPI bus on the main ESP32 |
@@ -145,6 +146,7 @@ The main firmware is structured as a collection of FreeRTOS tasks pinned to spec
 | `task_motor` | 0 | 4 | 3 KB | Apply motor commands, read ADC current, update position |
 | `task_sensors` | 0 | 3 | 3 KB | Tick HC-SR04 ultrasonics at 20 Hz, infer direction |
 | `task_vision` | 0 | 3 | 4 KB | UART2 RX, parse ESP32-CAM JSON, heartbeat timeout |
+| `task_counterweight` | 0 | 2 | 2 KB | Simulated dynamic counterweight — pump/drain/level at 20 Hz |
 | `task_telemetry` | 0 | 1 | 2 KB | Uptime, CPU load, voltage rails — 1 Hz |
 | `task_hmi` | 1 | 2 | 8 KB | LVGL tick, screen refresh, touch + button input handler |
 
@@ -218,6 +220,8 @@ vertical-lift-bridge/
 │       │   ├── fsm_engine.h/.cpp    # Table-driven 9-state FSM
 │       │   ├── fsm_guards.h/.cpp    # 5 boolean preconditions
 │       │   └── fsm_actions.h/.cpp   # Entry/exit side-effects
+│       ├── counterweight/       # ◄── M2 (simulation logic)
+│       │   └── counterweight.h/.cpp # Simulated pump/drain water tanks
 │       ├── motor/               # ◄── M2
 │       │   └── motor_driver.h/.cpp  # BTS7960 PWM, encoder, current sense
 │       ├── sensors/             # ◄── M3
@@ -678,10 +682,11 @@ ESP32 SDK: vX.Y.Z | Sketch: <date>
 [fault] init OK
 [ilk] init OK (relay off until first OK eval)
 [motor] init OK
-[us] init OK
+[us] init OK (4 sensors, upstream + downstream)
 [vision] UART2 init @ 115200
 [lights] init OK
 [buz] init OK
+[cw] init OK (simulated dynamic counterweight)
 [boot] Peripherals OK
 [boot] Tasks created — entering scheduler
 [hmi] task start (Core 1)

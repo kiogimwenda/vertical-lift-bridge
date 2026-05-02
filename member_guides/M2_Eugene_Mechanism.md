@@ -12,10 +12,11 @@
 | 13 STL files | `cad/stl/*.stl` | Slicer inputs |
 | `cad/README_cad.md` | `cad/` | Print order + slicer profile |
 | `firmware/src/motor/motor_driver.{h,cpp}` | firmware | BTS7960 PWM, encoder, current sensing |
+| `firmware/src/counterweight/counterweight.{h,cpp}` | firmware | **Simulated** dynamic counterweight system (pump/drain water tanks) — software only, no physical hardware change |
 | `firmware/src/pin_config.h` (motor section) | firmware | M1 owns file, but **you** own motor pins |
 | Mechanical assembly photos | `docs/build_log/` | New folder you create — photo-document every step |
 
-**Not your work:** PCB, traffic lights, vision. You consume `g_motor_cmd_queue` and update `g_status.deck_position_mm`.
+**Not your work:** PCB, traffic lights, vision. You consume `g_motor_cmd_queue` and update `g_status.deck_position_mm`. You also own the simulated counterweight module (`firmware/src/counterweight/`) which models a pump-and-drain water tank system in software — the physical counterweights remain static lead boxes.
 
 ---
 
@@ -54,7 +55,7 @@ You'll save days of failed prints by reading the source first. Open each `.scad`
 | `cable_drum.scad` | Motor spool | `drum_diameter = 30` — **this drives counts/mm calibration** |
 | `pulley_top.scad` | Top pulley wheel | Bore Ø8 mm for 608ZZ bearing |
 | `pulley_bracket.scad` | Pulley axle holder | M8 hole — match your axle bolt |
-| `counterweight_box.scad` | Lead-shot container | Designed to hold 4× 30 g pieces = 120 g |
+| `counterweight_box.scad` | Lead-shot container | Designed to hold 4× 30 g pieces = 120 g. Physical counterweight is static; the firmware simulates a dynamic water-tank system in parallel for demo purposes |
 | `motor_mount.scad` | JGA25-370 cradle | Match your motor's M3 hole pattern (12 × 18 mm) |
 | `barrier_arm.scad` | Servo barrier (×2) | Mounts directly on SG90 horn |
 | `barrier_base.scad` | Servo base | M3 inserts |
@@ -119,7 +120,7 @@ Total ≈ **70 hours print time, 1.05 kg PLA**. Don't print everything at once �
 5. **Motor + drum**: Bolt motor to motor_mount. Slide drum onto motor shaft, secure with M3 grub screw on shaft flat. Mount motor_mount to base on the **right tower side**, pulley axis aligned with drum.
 6. **Cable**: Cut two 1 m lengths of 1 mm braided cable. Crimp loop terminals on one end of each. Anchor loop to deck (M3 eyelet). Run cable up over inner pulley → across top → down outer pulley → terminate at counterweight box.
 7. **Drum cable**: Cut 0.6 m of cable. Crimp loop on each end. Loop one end through drum cross-hole, other end to centre of deck top. Wind 6 turns onto drum (winding direction = "deck rises when motor turns CW from front view").
-8. **Counterweights**: Fill each box with 4 × 30 g lead. Hot-glue lid to seal. Hang on cable.
+8. **Counterweights**: Fill each box with 4 × 30 g lead. Hot-glue lid to seal. Hang on cable. Note: the firmware runs a simulated dynamic counterweight module (`counterweight/counterweight.cpp`) that models water tanks being filled/drained — this is a software-only simulation for demonstration on the TFT dashboard. The physical counterweights remain these static lead boxes.
 9. **Limit switches**: Mount KW11-3Z microswitches at top + bottom of one tower. Wire NC contacts to limit pins (PIN_LIMIT_TOP / PIN_LIMIT_BOTTOM with INPUT_PULLUP — switch shorts to GND when activated).
 10. **First manual test**: With motor power **OFF**, lift deck by hand. Should rise smoothly with counterweights falling. Drop deck slowly — counterweights rise. If binds: re-square towers, re-tension cables, debur rail.
 

@@ -5,6 +5,7 @@
 #include "fsm_actions.h"
 #include "../system_types.h"
 #include "../motor/motor_driver.h"
+#include "../counterweight/counterweight.h"
 #include "../traffic/traffic_lights.h"
 #include "../traffic/buzzer.h"
 #include "../safety/interlocks.h"
@@ -48,6 +49,8 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_marine(TL_RED);
         buzzer_chirp(2);
         barriers_close();
+        // Trigger simulated counterweight balancing before raise
+        counterweight_set_target(CW_SIM_TARGET_DEFAULT_ML, CW_SIM_TARGET_DEFAULT_ML);
         display_notify_state_change(STATE_ROAD_CLEARING);
         break;
 

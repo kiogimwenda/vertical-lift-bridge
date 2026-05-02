@@ -177,9 +177,19 @@ Persist widget pointers as static `lv_obj_t*` inside the factory so `refresh_act
 
 ---
 
-## Step 6 — TELEMETRY screen — gauges & history
+## Step 6 — TELEMETRY screen — gauges, history & counterweight simulation
 
-This is the engineering view. Three suggested gauges:
+This is the engineering view. It includes a **simulated dynamic counterweight panel** (already wired up as a stub in `display.cpp`) showing:
+
+- Two vertical bars for left/right water tank levels (`s_local.counterweight.left/right.water_level_ml`)
+- Pump and drain status indicators per tank (PUMP / DRAIN / IDLE)
+- A "BALANCED" / "BALANCING..." status label
+
+The counterweight simulation runs entirely in software — there are no physical water tanks. The static lead counterweights on the rig are unchanged. The simulation demonstrates how a dynamic pump-and-drain system would work, and the TFT dashboard animates it in real time.
+
+The stub panel is already created in `screen_create_telemetry()` and refreshed in `refresh_active()`. You have full creative liberty to restyle it — change colours, use arc gauges instead of bars, add icons for pumps/valves, animate the fill/drain transitions, etc.
+
+Additional suggested gauges:
 
 ```cpp
 // Motor current arc

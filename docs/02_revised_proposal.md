@@ -85,6 +85,7 @@ The single PCB carries the ESP32-WROOM, motor driver, shift register, USB-UART, 
 | D7 | HMI input | 4 pushbuttons only | **XPT2046 resistive touch + pushbuttons retained for E-stop / Mode** | Touch enables on-screen navigation across 5 screens; pushbuttons remain as the "always works even if touch panel cracks" emergency input — a defence-in-depth pattern. |
 | D8 | Custom font | LVGL Montserrat default | **Custom LVGL font generated from Inter at 12/16/24/36 px** | Default fonts on a black panel look generic; Inter is open-licensed and has both a Display cut for the 36 px hero metric and a Body cut for 16 px labels. |
 | D9 | Group number | — | **Group 7** | Corrected to Group 7. |
+| D10 | Counterweight type | Static only (lead-filled boxes) | **Static physical + simulated dynamic (firmware)** | The physical counterweights remain static lead boxes. The firmware adds a software-simulated dynamic counterweight module that models water tanks with pumps and drain valves. Water levels, pump status, and balance state are displayed in real time on the TFT dashboard. This demonstrates the concept of adaptive counterweight balancing without requiring physical plumbing. |
 
 ### 4.1 Counterweight sizing calculation
 

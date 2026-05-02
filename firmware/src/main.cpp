@@ -22,6 +22,7 @@
 #include "traffic/buzzer.h"
 #include "hmi/display.h"
 #include "hmi/input.h"
+#include "counterweight/counterweight.h"
 #include "safety/watchdog.h"
 #include "safety/fault_register.h"
 #include "safety/interlocks.h"
@@ -45,6 +46,7 @@ static TaskHandle_t h_vision        = nullptr;
 static TaskHandle_t h_safety        = nullptr;
 static TaskHandle_t h_hmi           = nullptr;
 static TaskHandle_t h_telemetry     = nullptr;
+static TaskHandle_t h_counterweight = nullptr;
 
 // ---------------------------------------------------------------------------
 // Task stack sizes (bytes) — tuned, then bumped 25% for headroom.
@@ -56,6 +58,7 @@ static constexpr uint32_t STK_VISION    = 4096;
 static constexpr uint32_t STK_SAFETY    = 3072;
 static constexpr uint32_t STK_HMI       = 8192;     // LVGL needs space
 static constexpr uint32_t STK_TELEM     = 2048;
+static constexpr uint32_t STK_CW       = 2048;
 
 // ---------------------------------------------------------------------------
 // Task priorities — higher = more urgent. Keep safety highest.
@@ -66,6 +69,7 @@ static constexpr UBaseType_t PRI_MOTOR      = 4;
 static constexpr UBaseType_t PRI_SENSORS    = 3;
 static constexpr UBaseType_t PRI_VISION     = 3;
 static constexpr UBaseType_t PRI_HMI        = 2;
+static constexpr UBaseType_t PRI_CW         = 2;
 static constexpr UBaseType_t PRI_TELEM      = 1;
 
 // ---------------------------------------------------------------------------
@@ -81,8 +85,9 @@ static void task_fsm        (void* arg);
 static void task_motor      (void* arg);
 static void task_sensors    (void* arg);
 static void task_vision     (void* arg);
-static void task_safety     (void* arg);
-static void task_telemetry  (void* arg);
+static void task_safety         (void* arg);
+static void task_counterweight  (void* arg);
+static void task_telemetry      (void* arg);
 
 // HMI task is implemented in hmi/display.cpp because it owns LVGL tick + flush.
 extern void task_hmi(void* arg);
@@ -122,6 +127,7 @@ void setup() {
     vision_link_init();
     traffic_lights_init();
     buzzer_init();
+    counterweight_init();
 
     // HMI is started inside task_hmi (must run on Core 1 for LVGL).
     Serial.println("[boot] Peripherals OK");
@@ -137,6 +143,8 @@ void setup() {
                             nullptr, PRI_SENSORS, &h_sensors,  CORE_0);
     xTaskCreatePinnedToCore(task_vision,    "vision",   STK_VISION,
                             nullptr, PRI_VISION, &h_vision,    CORE_0);
+    xTaskCreatePinnedToCore(task_counterweight, "cw",    STK_CW,
+                            nullptr, PRI_CW,     &h_counterweight, CORE_0);
     xTaskCreatePinnedToCore(task_telemetry, "telem",    STK_TELEM,
                             nullptr, PRI_TELEM,  &h_telemetry, CORE_0);
 
@@ -223,6 +231,17 @@ static void task_safety(void* arg) {
         interlocks_evaluate();
         fault_register_evaluate();
         safety_watchdog_check_all();
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(50));   // 20 Hz
+    }
+}
+
+// ===========================================================================
+// task_counterweight — simulated dynamic counterweight system at 20 Hz.
+// ===========================================================================
+static void task_counterweight(void* arg) {
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        counterweight_tick();
         vTaskDelayUntil(&last, pdMS_TO_TICKS(50));   // 20 Hz
     }
 }

@@ -16,7 +16,7 @@
 | `firmware/src/fsm/fsm_guards.{h,cpp}` | 100 | Boolean preconditions |
 | `firmware/src/fsm/fsm_actions.{h,cpp}` | 120 | Side-effects on entry/exit |
 
-**Not your work:** motor (M2), sensors/vision (M3), HMI/lights (M4), PCB/safety (M5). You wire their public APIs together — you don't implement their internals.
+**Not your work:** motor + counterweight simulation (M2), sensors/vision (M3), HMI/lights (M4), PCB/safety (M5). You wire their public APIs together — you don't implement their internals. The simulated counterweight module (`firmware/src/counterweight/`) is owned by M2 but integrated through the FSM via `EVT_CW_READY`.
 
 ---
 
@@ -140,10 +140,11 @@ You don't need motors or sensors connected for this — just the bare ESP32 + US
    [fault] init OK
    [ilk] init OK (relay off until first OK eval)
    [motor] init OK
-   [us] init OK
+   [us] init OK (4 sensors, upstream + downstream)
    [vision] UART2 init @ 115200
    [lights] init OK
    [buz] init OK
+   [cw] init OK (simulated dynamic counterweight)
    [boot] Peripherals OK
    [boot] Tasks created — entering scheduler
    [hmi] task start (Core 1)

@@ -45,6 +45,7 @@ typedef enum : uint8_t {
     EVT_OPERATOR_RAISE,       // Manual raise from HMI/button
     EVT_OPERATOR_LOWER,       // Manual lower from HMI/button
     EVT_OPERATOR_HOLD,        // Manual freeze in current position
+    EVT_CW_READY,             // Simulated counterweights reached target
     EVT_TICK_100MS,           // Periodic tick for guards
     EVT_COUNT
 } SystemEvent_t;
@@ -136,6 +137,27 @@ typedef struct {
 } UltrasonicStatus_t;
 
 // ----------------------------------------------------------------------------
+// Simulated dynamic counterweight system.
+// Pure software simulation — no physical pumps, valves, or sensors.
+// Models two water tanks that fill/drain to balance the bridge deck.
+// Owner: M2 Eugene (counterweight/counterweight.cpp).
+// ----------------------------------------------------------------------------
+typedef struct {
+    float    water_level_ml;     // 0.0 .. CW_TANK_CAPACITY_ML
+    float    weight_g;           // water_level_ml * 1.0 (1 ml ≈ 1 g)
+    bool     pump_active;        // Simulated pump running
+    bool     drain_open;         // Simulated drain valve open
+    float    target_ml;          // Desired fill level
+} CwTankSim_t;
+
+typedef struct {
+    CwTankSim_t left;
+    CwTankSim_t right;
+    bool        balanced;        // Both tanks within tolerance of target
+    uint32_t    last_update_ms;
+} CounterweightStatus_t;
+
+// ----------------------------------------------------------------------------
 // SharedStatus — single struct guarded by a mutex.
 // All tasks read/write through xSemaphoreTake(g_status_mutex, ...).
 // Producers: motor (position, current), sensors (ultrasonic), vision, FSM.
@@ -168,6 +190,9 @@ typedef struct {
     // Sensing
     UltrasonicStatus_t ultrasonic;
     VisionStatus_t  vision;
+
+    // Simulated counterweight
+    CounterweightStatus_t counterweight;
 
     // Safety
     uint32_t        fault_flags;
@@ -207,6 +232,13 @@ typedef struct {
 #define HOLD_TIMEOUT_MS             8000     // Raised-hold for boat passage
 #define ULTRASONIC_TRIGGER_CM       80
 #define ULTRASONIC_BEAM_SPACING_CM  3        // Gap between Beam A and B within each pair
+// Simulated dynamic counterweight tunables
+#define CW_TANK_CAPACITY_ML        150.0f   // Max tank capacity (ml)
+#define CW_SIM_FILL_RATE_ML_PER_S  30.0f    // Simulated pump fill rate
+#define CW_SIM_DRAIN_RATE_ML_PER_S 40.0f    // Simulated gravity drain rate
+#define CW_SIM_TARGET_DEFAULT_ML   120.0f   // Default fill level (matches static weight)
+#define CW_SIM_TOLERANCE_ML        2.0f     // ±2 ml = "at target"
+
 #define VISION_HEARTBEAT_TIMEOUT_MS 2000
 #define WATCHDOG_KICK_PERIOD_MS     500
 #define WATCHDOG_MAX_INTERVAL_MS    1500

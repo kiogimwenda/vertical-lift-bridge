@@ -90,13 +90,17 @@ void fsm_engine_handle(SystemEvent_t evt) {
         }
         break;
 
-    case STATE_ROAD_CLEARING:
-        if (evt == EVT_BARRIER_CLOSED || evt == EVT_TICK_100MS) {
-            if (fsm_guard_road_clear()) {
+    case STATE_ROAD_CLEARING: {
+        // Need both barriers closed AND counterweights balanced before raising
+        static bool s_cw_ok = false;
+        if (evt == EVT_CW_READY) s_cw_ok = true;
+        if (evt == EVT_BARRIER_CLOSED || evt == EVT_CW_READY || evt == EVT_TICK_100MS) {
+            if (fsm_guard_road_clear() && s_cw_ok) {
+                s_cw_ok = false;  // Reset for next cycle
                 enter_state(STATE_RAISING);
             }
         }
-        break;
+    } break;
 
     case STATE_RAISING:
         if (evt == EVT_TOP_LIMIT_HIT) {

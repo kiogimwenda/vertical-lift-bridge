@@ -195,15 +195,109 @@ static lv_obj_t* screen_create_main(void) {
 //   - s_local.last_cycle_duration_ms : label "Last cycle: 18.2s"
 //   - s_local.uptime_ms           : label HH:MM:SS
 //   - s_local.rssi_dbm, cpu_load_*, rail_*_volts
+//
+// COUNTERWEIGHT SIMULATION BINDINGS (new):
+//   - s_local.counterweight.left.water_level_ml  : vertical bar 0..CW_TANK_CAPACITY_ML
+//   - s_local.counterweight.right.water_level_ml : vertical bar 0..CW_TANK_CAPACITY_ML
+//   - s_local.counterweight.left.pump_active     : pump icon on/off
+//   - s_local.counterweight.right.pump_active    : pump icon on/off
+//   - s_local.counterweight.left.drain_open      : drain icon on/off
+//   - s_local.counterweight.right.drain_open     : drain icon on/off
+//   - s_local.counterweight.left.target_ml       : target line on bar
+//   - s_local.counterweight.balanced             : "BALANCED" / "BALANCING..." label
+//
 // Use lv_chart for a sparkline of motor current or position over time.
+
+// Static widget pointers for counterweight display (refreshed in refresh_active)
+static lv_obj_t* s_cw_bar_left   = nullptr;
+static lv_obj_t* s_cw_bar_right  = nullptr;
+static lv_obj_t* s_cw_lbl_left   = nullptr;
+static lv_obj_t* s_cw_lbl_right  = nullptr;
+static lv_obj_t* s_cw_lbl_status = nullptr;
+static lv_obj_t* s_cw_lbl_pump_l = nullptr;
+static lv_obj_t* s_cw_lbl_pump_r = nullptr;
+
 static lv_obj_t* screen_create_telemetry(void) {
     lv_obj_t* scr = lv_obj_create(NULL);
     lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
 
-    lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "TELEMETRY\n(M4: design me)");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+    // Title
+    lv_obj_t* title = lv_label_create(scr);
+    lv_label_set_text(title, "TELEMETRY");
+    lv_obj_set_style_text_color(title, lv_color_hex(ui_tokens::TXT_PRIMARY), 0);
+    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
+
+    // --- Counterweight simulation panel ---
+    lv_obj_t* cw_panel = lv_obj_create(scr);
+    lv_obj_set_size(cw_panel, 230, 140);
+    lv_obj_align(cw_panel, LV_ALIGN_TOP_MID, 0, 24);
+    lv_obj_set_style_bg_color(cw_panel, lv_color_hex(ui_tokens::SURFACE), 0);
+    lv_obj_set_style_border_width(cw_panel, 1, 0);
+    lv_obj_set_style_border_color(cw_panel, lv_color_hex(ui_tokens::DIVIDER), 0);
+    lv_obj_set_style_radius(cw_panel, 4, 0);
+    lv_obj_set_style_pad_all(cw_panel, ui_tokens::PAD_S, 0);
+
+    lv_obj_t* cw_title = lv_label_create(cw_panel);
+    lv_label_set_text(cw_title, "Counterweight Tanks");
+    lv_obj_set_style_text_color(cw_title, lv_color_hex(ui_tokens::INFO), 0);
+    lv_obj_align(cw_title, LV_ALIGN_TOP_MID, 0, 0);
+
+    // Left tank bar
+    lv_obj_t* lbl_l = lv_label_create(cw_panel);
+    lv_label_set_text(lbl_l, "L");
+    lv_obj_set_style_text_color(lbl_l, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(lbl_l, LV_ALIGN_BOTTOM_LEFT, 20, -2);
+
+    s_cw_bar_left = lv_bar_create(cw_panel);
+    lv_obj_set_size(s_cw_bar_left, 20, 80);
+    lv_bar_set_range(s_cw_bar_left, 0, (int32_t)CW_TANK_CAPACITY_ML);
+    lv_bar_set_value(s_cw_bar_left, (int32_t)CW_SIM_TARGET_DEFAULT_ML, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(s_cw_bar_left, lv_color_hex(ui_tokens::INFO), LV_PART_INDICATOR);
+    lv_obj_align(s_cw_bar_left, LV_ALIGN_LEFT_MID, 15, 5);
+
+    s_cw_lbl_left = lv_label_create(cw_panel);
+    lv_label_set_text(s_cw_lbl_left, "120ml");
+    lv_obj_set_style_text_color(s_cw_lbl_left, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(s_cw_lbl_left, LV_ALIGN_LEFT_MID, 40, 5);
+
+    // Right tank bar
+    lv_obj_t* lbl_r = lv_label_create(cw_panel);
+    lv_label_set_text(lbl_r, "R");
+    lv_obj_set_style_text_color(lbl_r, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(lbl_r, LV_ALIGN_BOTTOM_RIGHT, -20, -2);
+
+    s_cw_bar_right = lv_bar_create(cw_panel);
+    lv_obj_set_size(s_cw_bar_right, 20, 80);
+    lv_bar_set_range(s_cw_bar_right, 0, (int32_t)CW_TANK_CAPACITY_ML);
+    lv_bar_set_value(s_cw_bar_right, (int32_t)CW_SIM_TARGET_DEFAULT_ML, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(s_cw_bar_right, lv_color_hex(ui_tokens::INFO), LV_PART_INDICATOR);
+    lv_obj_align(s_cw_bar_right, LV_ALIGN_RIGHT_MID, -15, 5);
+
+    s_cw_lbl_right = lv_label_create(cw_panel);
+    lv_label_set_text(s_cw_lbl_right, "120ml");
+    lv_obj_set_style_text_color(s_cw_lbl_right, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(s_cw_lbl_right, LV_ALIGN_RIGHT_MID, -40, 5);
+
+    // Pump/drain status labels
+    s_cw_lbl_pump_l = lv_label_create(cw_panel);
+    lv_label_set_text(s_cw_lbl_pump_l, "IDLE");
+    lv_obj_set_style_text_color(s_cw_lbl_pump_l, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(s_cw_lbl_pump_l, LV_ALIGN_LEFT_MID, 40, 20);
+
+    s_cw_lbl_pump_r = lv_label_create(cw_panel);
+    lv_label_set_text(s_cw_lbl_pump_r, "IDLE");
+    lv_obj_set_style_text_color(s_cw_lbl_pump_r, lv_color_hex(ui_tokens::TXT_MUTED), 0);
+    lv_obj_align(s_cw_lbl_pump_r, LV_ALIGN_RIGHT_MID, -40, 20);
+
+    // Balanced status
+    s_cw_lbl_status = lv_label_create(cw_panel);
+    lv_label_set_text(s_cw_lbl_status, "BALANCED");
+    lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::CLEAR), 0);
+    lv_obj_align(s_cw_lbl_status, LV_ALIGN_BOTTOM_MID, 0, -2);
+
+    // TODO M4: Add motor current arc, deck position bar, sparkline below
+    // the counterweight panel. Design the rest of this screen freely.
+
     return scr;
 }
 
@@ -281,6 +375,48 @@ static void refresh_active(void) {
         //                                state_to_str(s_local.state));
         break;
     case HMI_SCREEN_TELEMETRY:
+        // Counterweight simulation display
+        if (s_cw_bar_left) {
+            lv_bar_set_value(s_cw_bar_left, (int32_t)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
+            lv_label_set_text_fmt(s_cw_lbl_left, "%.0fml", s_local.counterweight.left.water_level_ml);
+
+            if (s_local.counterweight.left.pump_active)
+                lv_label_set_text(s_cw_lbl_pump_l, "PUMP");
+            else if (s_local.counterweight.left.drain_open)
+                lv_label_set_text(s_cw_lbl_pump_l, "DRAIN");
+            else
+                lv_label_set_text(s_cw_lbl_pump_l, "IDLE");
+
+            lv_obj_set_style_text_color(s_cw_lbl_pump_l,
+                lv_color_hex(s_local.counterweight.left.pump_active ? ui_tokens::CLEAR :
+                             s_local.counterweight.left.drain_open  ? ui_tokens::WARN  :
+                             ui_tokens::TXT_MUTED), 0);
+        }
+        if (s_cw_bar_right) {
+            lv_bar_set_value(s_cw_bar_right, (int32_t)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);
+            lv_label_set_text_fmt(s_cw_lbl_right, "%.0fml", s_local.counterweight.right.water_level_ml);
+
+            if (s_local.counterweight.right.pump_active)
+                lv_label_set_text(s_cw_lbl_pump_r, "PUMP");
+            else if (s_local.counterweight.right.drain_open)
+                lv_label_set_text(s_cw_lbl_pump_r, "DRAIN");
+            else
+                lv_label_set_text(s_cw_lbl_pump_r, "IDLE");
+
+            lv_obj_set_style_text_color(s_cw_lbl_pump_r,
+                lv_color_hex(s_local.counterweight.right.pump_active ? ui_tokens::CLEAR :
+                             s_local.counterweight.right.drain_open  ? ui_tokens::WARN  :
+                             ui_tokens::TXT_MUTED), 0);
+        }
+        if (s_cw_lbl_status) {
+            if (s_local.counterweight.balanced) {
+                lv_label_set_text(s_cw_lbl_status, "BALANCED");
+                lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::CLEAR), 0);
+            } else {
+                lv_label_set_text(s_cw_lbl_status, "BALANCING...");
+                lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::WARN), 0);
+            }
+        }
         // TODO M4: lv_arc_set_value(current_arc, s_local.motor_current_ma);
         break;
     case HMI_SCREEN_FAULTS:
