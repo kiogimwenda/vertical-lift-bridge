@@ -7,15 +7,15 @@
 // ====================== POWER =======================================
 // (no GPIOs; LM2596 + AMS1117 are pure analogue)
 
-// ====================== MOTOR  (DRV8871 driven by LEDC) =============
-#define PIN_MOTOR_IN1        25     // LEDC ch 0 -> DRV8871 IN1 (forward)
-#define PIN_MOTOR_IN2        26     // LEDC ch 1 -> DRV8871 IN2 (reverse)
-#define PIN_MOTOR_VPROPI     34     // ADC1_CH6, current sense from DRV8871
+// ====================== MOTOR  (BTS7960 H-bridge driven by LEDC) ====
+#define PIN_MOTOR_IN1        25     // LEDC ch 0 -> BTS7960 RPWM (forward/up)
+#define PIN_MOTOR_IN2        26     // LEDC ch 1 -> BTS7960 LPWM (reverse/down)
+#define PIN_MOTOR_VPROPI     34     // ADC1_CH6, current sense from BTS7960
 #define PIN_MOTOR_RELAY      32     // Active-HIGH gate to SRD-05VDC relay coil
 #define PIN_DECK_POSITION    35     // ADC1_CH7, deck position potentiometer
 
 #define LEDC_MOTOR_FREQ_HZ   20000  // Above audible
-#define LEDC_MOTOR_RES_BITS  10     // 0..1023 duty
+#define LEDC_MOTOR_RES_BITS  13     // 0..8191 duty (matches MOTOR_PWM_MAX in system_types.h)
 #define LEDC_MOTOR_CH_FWD    0
 #define LEDC_MOTOR_CH_REV    1
 
@@ -201,6 +201,49 @@
 #undef PIN_BUZZER
 #define PIN_BUZZER            1     // GPIO1 (USB_TX) repurposed after boot for buzzer
 #define LEDC_BUZZER_CH        5
+
+// ====================== VOLTAGE SENSE (ADC) =========================
+// Voltage divider taps for 12 V and 5 V rail monitoring.
+// 12 V rail: 33 kΩ / 10 kΩ divider → ~2.79 V max at ADC.
+// 5 V rail:  10 kΩ / 10 kΩ divider → ~2.50 V max at ADC.
+// Both share ADC1 with motor VPROPI; read only when motor is idle
+// (FSM states IDLE, RAISED_HOLD, LOWERED_HOLD).
+#define PIN_V12_SENSE        34     // shared MOTOR_VPROPI; multiplexed by FSM state
+#define PIN_V5_SENSE         35     // shared DECK_POSITION; multiplexed by FSM state
+
+// ====================== BACKWARD-COMPAT ALIASES =====================
+// The .cpp files were written with different pin names than pin_config.h
+// defines. These aliases let everything compile without renaming every
+// reference in every module. The canonical names are above; these are
+// convenience mappings only.
+//
+// --- motor_driver.cpp (BTS7960 naming) ---
+#define PIN_MOT_RPWM         PIN_MOTOR_IN1       // forward/up
+#define PIN_MOT_LPWM         PIN_MOTOR_IN2       // reverse/down
+#define PIN_MOT_VPROPI       PIN_MOTOR_VPROPI    // current sense
+#define PIN_ENC_A            PIN_DECK_POSITION   // Hall encoder / potentiometer
+#define PIN_LIMIT_TOP        PIN_LIMIT_ANYHIT    // single GPIO for any-limit-hit
+#define PIN_LIMIT_BOTTOM     PIN_LIMIT_ANYHIT    // same GPIO — see NOTE below
+// NOTE: hardware has a single diode-OR "any limit hit" signal on GPIO 39.
+// Both PIN_LIMIT_TOP and PIN_LIMIT_BOTTOM map to the same physical pin.
+// motor_driver.cpp reads both — they will always agree. Top-vs-bottom
+// discrimination uses deck_position_mm (above/below midpoint = top/bottom).
+
+// --- interlocks.cpp ---
+#define PIN_ESTOP            PIN_ESTOP_IRQ       // e-stop interrupt pin
+#define PIN_RELAY            PIN_MOTOR_RELAY      // safety relay coil
+#define PIN_SERVO_L          PIN_SERVO_LEFT       // left barrier servo
+#define PIN_SERVO_R          PIN_SERVO_RIGHT      // right barrier servo
+
+// --- vision_link.cpp ---
+#define PIN_UART2_TX         PIN_VISION_TX        // UART2 to ESP32-CAM
+#define PIN_UART2_RX         PIN_VISION_RX        // UART2 from ESP32-CAM
+
+// --- traffic_lights.cpp ---
+#define PIN_595_OE           PIN_595_OE_N         // 74HC595 output enable
+
+// --- input.cpp ---
+#define PIN_BTN_LADDER       PIN_OP_PANEL_ADC     // operator panel resistor ladder
 
 // ====================== END ========================================
 //

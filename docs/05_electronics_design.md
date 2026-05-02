@@ -15,7 +15,7 @@
                                        │
                                 ┌──────┴──────┐
                                 ▼             ▼
-                          LM2596-5.0      DRV8871 12V VM
+                          LM2596-5.0      BTS7960 12V VM
                           (5 V, 3 A)         (motor)
                                 │
                           ┌─────┴─────┐
@@ -39,8 +39,8 @@
                     │ ─ external SD?   │             │              │
                     │                  │             │              │
                     │ I2C (free)       │             │ LEDC PWM     │
-                    │                  │             │ ─ DRV8871 IN1│
-                    │                  │             │ ─ DRV8871 IN2│
+                    │                  │             │ ─ BTS7960 IN1│
+                    │                  │             │ ─ BTS7960 IN2│
                     │                  │             │ ─ TFT BL     │
                     │                  │             │              │
                     │                  │             │ Shift register│
@@ -66,17 +66,17 @@
 | Board outline | 100.00 × 80.00 mm rectangular, 1.0 mm corner radius | Locked from repo (L5); fits standard JLCPCB economy slot, fits PCB enclosure (11_pcb_enclosure.scad) with 0.3 mm clearance |
 | Layer count | **2-layer** (top + bottom) | Sufficient for low-density 3.3 V signalling + single 12 V power rail |
 | Substrate | FR4 TG130 (default), 1.6 mm | Mechanical rigidity for connector forces |
-| Copper weight | **1 oz/ft² (35 µm)** both layers | Standard, free at JLCPCB; trace 1 mm @ 1 oz handles 2.5 A (>2A peak DRV8871) |
+| Copper weight | **1 oz/ft² (35 µm)** both layers | Standard, free at JLCPCB; trace 1 mm @ 1 oz handles 2.5 A (>2A peak BTS7960) |
 | Surface finish | HASL lead-free | Cheapest at JLCPCB (free); compatible with hand soldering |
 | Solder mask | **Matte black** | Free, helps silkscreen contrast; tier-2 finish |
-| Silkscreen | **White** | All component refdes + project ident "VLB-G5 v2.0" + GitHub QR code in bottom-right |
+| Silkscreen | **White** | All component refdes + project ident "VLB-G7 v2.0" + GitHub QR code in bottom-right |
 | Trace width — signal | **0.25 mm** (10 mil) | Comfortable hand-soldering and JLCPCB minimum |
 | Trace width — 3.3 V | **0.40 mm** (16 mil) | <300 mA total |
 | Trace width — 5 V | **1.00 mm** (40 mil) | Up to 3 A from LM2596 |
 | Trace width — 12 V (motor) | **1.50 mm** (60 mil) | Peak 2.5 A under stall |
 | Trace clearance | **0.20 mm** (8 mil) | JLCPCB economy minimum |
 | Via — signal | drill 0.30 / pad 0.60 mm | Standard |
-| Via — power | drill 0.40 / pad 0.80 mm; thermal vias 5× under DRV8871 | Heat dissipation |
+| Via — power | drill 0.40 / pad 0.80 mm; thermal vias 5× under BTS7960 | Heat dissipation |
 | Bottom layer | **Solid GND pour** | Star-ground at LM2596 GND pin |
 | Top layer | **GND pour everywhere not signal/power** | Reduces EMI; backs antenna keep-out |
 | Antenna keep-out | **7 × 30 mm** at top edge near ESP32 | ESP32 datasheet §5.5 keep-out |
@@ -171,7 +171,7 @@ pcb/kicad-project/
 ├── PowerSupply.kicad_sch                ← +12 V → +5 V LM2596 → +3.3 V AMS1117
 ├── ESP32Module.kicad_sch                ← ESP32-WROOM-32 + strapping resistors + crystal (none, internal)
 ├── USBUart.kicad_sch                    ← CP2102N + USB-C + auto-reset DTR/RTS
-├── MotorDrivers.kicad_sch               ← DRV8871 + VPROPI + flyback caps
+├── MotorDrivers.kicad_sch               ← BTS7960 + VPROPI + flyback caps
 ├── ShiftRegLEDs.kicad_sch               ← 74HC595 + 8 LEDs (4× R, 2× Y, 2× G traffic) + Rs
 ├── ConnectorsSafety.kicad_sch           ← JST-XH headers, SRD-05VDC relay, MOSFET, E-stop, fuse
 ├── TFT_Camera.kicad_sch                 ← *NEW SHEET* — TFT pin header, touch IRQ, ESP32-CAM UART, backlight Q1
@@ -198,7 +198,7 @@ pcb/kicad-project/
 | ESP32-CAM (camera streaming) | 5 V | – | 240 | AI-Thinker datasheet |
 | JGA25-370 motor (12 V, free run) | 12 V | – | 130 | Datasheet |
 | JGA25-370 motor (12 V, normal) | 12 V | – | 350 | Measured under counterweight |
-| JGA25-370 motor (12 V, stall) | 12 V | – | 2200 | Datasheet (current limit by DRV8871 to ~1.3 A via Risense) |
+| JGA25-370 motor (12 V, stall) | 12 V | – | 2200 | Datasheet (current limit by BTS7960 to ~1.3 A via Risense) |
 
 **Rail totals:**
 

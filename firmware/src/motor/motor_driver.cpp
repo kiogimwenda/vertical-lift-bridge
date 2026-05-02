@@ -4,12 +4,12 @@
 // Owner: M2 Eugene (Mechanism)
 //
 // Pin mapping (see pin_config.h):
-//   MOT_RPWM (forward/up)   — GPIO25  (LEDC ch0, 13-bit, 20 kHz)
-//   MOT_LPWM (reverse/down) — GPIO26  (LEDC ch1, 13-bit, 20 kHz)
+//   MOT_RPWM (forward/up)   — GPIO25  (LEDC ch0, 10-bit, 20 kHz)
+//   MOT_LPWM (reverse/down) — GPIO26  (LEDC ch1, 10-bit, 20 kHz)
 //   MOT_R_EN, MOT_L_EN      — tied high to 5 V on board (always enabled)
 //   MOT_VPROPI (current)    — GPIO34  (ADC1_CH6, input-only, NO pull-up)
-//   ENC_A                   — GPIO27  (Hall A — interrupt RISING)
-//   LIMIT_TOP, LIMIT_BOTTOM — GPIO16/17 (active-low with INPUT_PULLUP)
+//   ENC_A / DECK_POSITION   — GPIO35  (ADC1_CH7, potentiometer / encoder)
+//   LIMIT_ANYHIT            — GPIO39  (diode-OR of all limit switches)
 //
 // Counts/mm calibration is captured in CAL_COUNTS_PER_MM. Re-run the
 // calibration sketch (member guide M2) on each new gearmotor batch.

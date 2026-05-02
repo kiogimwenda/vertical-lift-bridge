@@ -129,7 +129,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 | Power | 12 V/3 A barrel input, LM2596 12→5 V buck, AMS1117 5→3.3 V LDO | TVS, polyfuse, Schottky reverse-protection |
 | Compute | ESP32-WROOM-32E DevKit (main), ESP32-CAM AI-Thinker (vision) | CAM 5 V from a separate buck — never share with main |
 
-Procurement targets Kenyan suppliers — full priced list in [`bom/VLB_Group7_BOM.xlsx`](./bom/VLB_Group7_BOM.xlsx). Grand total **KES 24,465**, broken into Mechanical (12,510), Electronics + TFT + CAM (5,995), PCB Fab (4,110), and Consumables (1,850). All formulas are live — change a unit price or quantity and the spreadsheet recalculates.
+Procurement targets Kenyan suppliers — full priced list in [`bom/VLB_Group7_BOM.xlsx`](./bom/VLB_Group7_BOM.xlsx). Grand total **KES 24,825**, broken into Mechanical (12,510), Electronics + TFT + CAM (5,995), PCB Fab (4,110), and Consumables (1,850). All formulas are live — change a unit price or quantity and the spreadsheet recalculates.
 
 ---
 
