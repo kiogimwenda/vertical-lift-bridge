@@ -64,8 +64,14 @@ JLCPCB has its own library with stock matching:
 1. **J6 — TFT 14-pin connector** (HSPI to TFT + touch)
 2. **J7 — ESP32-CAM 4-pin JST-XH connector** (GND, 5V_CAM, RX, TX)
 3. **Reroute the antenna keepout** for the WROOM module (7 × 30 mm)
-4. **Add 12 V undervoltage divider** (33 kΩ + 10 kΩ to PIN_V12_SENSE)
-5. **Add 5 V monitor divider** (10 kΩ + 10 kΩ to PIN_V5_SENSE)
+
+> **NOTE (v2.1 change):** The 12 V and 5 V rail-monitoring dividers were
+> removed from the v2.1 firmware because the only available ADC pins are
+> already owned by the BTS7960 IS pin and the deck-position pot (impedance
+> collision — see `docs/known_limitations.md`). **Do not populate** the
+> rail-sense divider footprints if they exist on the current PCB; they are
+> dead nets in v2.1 and would only inject noise into VPROPI / DECK_POSITION.
+> The v3 board adds a 74HC4051 analog mux to restore this monitoring.
 
 ---
 
@@ -95,14 +101,16 @@ JLCPCB has its own library with stock matching:
 3. Footprint: `JST_XH_B4B-XH-A_1x04_P2.50mm_Vertical`.
 4. **Important:** wire `5V_CAM` to a **separate** LM2596 buck output, not the main 5 V rail. Add that buck to the power sheet.
 
-### 3.3 Add voltage-monitoring dividers
-1. From the **filtered** 12 V rail (after polarity diode + fuse), add:
-   - 33 kΩ to PIN_V12_SENSE node
-   - 10 kΩ from PIN_V12_SENSE to GND
-2. From the 5 V rail:
-   - 10 kΩ to PIN_V5_SENSE node
-   - 10 kΩ from PIN_V5_SENSE to GND
-3. Add 100 nF cap from each sense node to GND (anti-aliasing).
+### 3.3 Voltage-monitoring dividers — REMOVED in v2.1
+The rail-sense divider scheme (33 kΩ/10 kΩ on 12 V, 10 kΩ/10 kΩ on 5 V) was
+dropped because PIN_V12_SENSE and PIN_V5_SENSE shared GPIO 34/35 with the
+BTS7960 IS pin and the deck-position pot — high-impedance dividers on the
+same pin would be swamped by the always-active low-impedance sensor outputs.
+
+**Action:** Leave any existing R23/R24/R25/R26 divider footprints
+**unpopulated**. The PCB nets become don't-care. Brownout protection is
+covered by the ESP32 internal brownout detector + BTS7960 UVLO + LM2596
+thermal limit. See `docs/known_limitations.md` (L1) for the v3 fix path.
 
 ### 3.4 Verify E-stop circuit
 The existing schematic should already have:
@@ -223,13 +231,23 @@ After every group: visual inspection under good light + multimeter continuity be
 9. Raise current limit to 1 A. Test motor command via serial.
 10. Raise to 3 A only when running the motor under load.
 
-### 12 V undervoltage tuning
-The divider 33k/10k → ADC reads 12 V as 2.79 V (3460 counts). Threshold in `fault_register.cpp` is 11.0 V. To verify:
-1. Drop bench supply slowly from 12 V to 10.5 V.
-2. At ≈ 11 V the firmware should log `[fault] raised: uv-12v`.
-3. Above 11.5 V (with hysteresis margin) the fault clears.
+### 12 V undervoltage tuning — REMOVED in v2.1
+The firmware-driven 12 V/5 V undervoltage detector was dropped in v2.1
+(see `docs/known_limitations.md` L1). Brownout protection is now layered:
 
-If the threshold is wrong, edit `V12_DIVIDER_RATIO` in `fault_register.cpp` to match your **actual** measured resistor values (use multimeter to measure each before solder).
+1. **ESP32 brownout detector** — built-in, trips at ~2.43 V on 3.3 V rail and
+   resets the chip. You'll see `Brownout detector triggered` on serial.
+2. **BTS7960 UVLO** — datasheet trip is ~5.5 V on the driver Vcc. Below that
+   the H-bridge stops switching; the FSM sees this as a stall fault
+   (`FAULT_STALL`) within `MOTOR_STALL_TIMEOUT_MS` (2 s).
+3. **LM2596 thermal/current limit** — protects the 5 V rail from sustained
+   overload independently of firmware.
+
+To verify the layered protection works on the bench:
+1. Drop the bench supply slowly. At ~10.5 V the BTS7960 should stop driving
+   the motor; firmware logs `[fault] raised: stall`.
+2. Continue dropping. At some point the ESP32 itself resets — observe the
+   reboot banner. This is expected and is the lowest-level protection.
 
 ---
 

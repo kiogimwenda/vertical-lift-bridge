@@ -13,7 +13,7 @@
 | `firmware/src/traffic/traffic_lights.{h,cpp}` | 74HC595 LED chain — already coded, you tune timing |
 | `firmware/src/traffic/buzzer.{h,cpp}` | Piezo patterns — coded, you may add new patterns |
 | `firmware/src/hmi/display.{h,cpp}` | **TEMPLATE** — infrastructure done, **screens are yours** |
-| `firmware/src/hmi/input.{h,cpp}` | Front-panel buttons (resistor ladder) — done, you tune ADC bands |
+| `firmware/src/hmi/input.{h,cpp}` | **Stub in v2.1** — touchscreen is the sole input device (see Step 11) |
 | `firmware/assets/fonts/*.c` | Drop converted Inter fonts here (LVGL converter) |
 | `firmware/assets/icons/*.c` | Drop converted icons here |
 | `docs/ui_design.md` | New file — sketch your screens, document choices |
@@ -63,7 +63,7 @@ Open `firmware/src/hmi/display.cpp`. Spend an hour reading it. Pay attention to:
 1. PlatformIO panel → vlb_main → Build → Upload.
 2. After "[hmi] task start (Core 1)", the TFT shows the BOOT screen for 1.5 s, then auto-switches to MAIN.
 3. The placeholder MAIN screen says "MAIN (M4: design me)".
-4. The bottom-panel resistor-ladder buttons cycle screens (NEXT_SCREEN command). Press once → TELEMETRY. Again → FAULTS. Again → SETTINGS. Again → back to MAIN.
+4. Tap the **on-screen "Next" button** (top-right of every screen) to cycle: MAIN → TELEMETRY → FAULTS → SETTINGS → MAIN. The v2.1 build has no hardware buttons — all input is via the XPT2046 touchscreen. (See Step 11 for why the resistor-ladder scheme was dropped.)
 
 If the screen is blank: re-check TFT pin wiring (J6 14-pin connector — see M5's guide for pinout). The 14 pins are HSPI: MOSI/MISO/SCLK/CS/DC/RST + touch CS/IRQ + backlight + 3.3 V + GND.
 
@@ -233,7 +233,7 @@ static const FaultRow kFaultRows[] = {
     { FAULT_VISION_LINK_LOST,  "Camera link lost"   },
     { FAULT_ULTRASONIC_FAIL,   "Ultrasonics dead"   },
     { FAULT_BARRIER_TIMEOUT,   "Barrier timeout"    },
-    { FAULT_UNDERVOLT_12V,     "12 V undervoltage"  },
+    // FAULT_UNDERVOLT_12V was deprecated in v2.1 (rail monitoring removed) — omit from list
     // ... add more
 };
 
@@ -344,25 +344,24 @@ Suggested icon set (design or source from a free icon pack — credit the source
 
 ---
 
-## Step 11 — Tune the front-panel buttons (resistor ladder)
+## Step 11 — Front-panel buttons — REMOVED in v2.1
 
-If you change ladder resistor values, recalibrate ADC bands in `input.cpp`:
+The original 5-button resistor-ladder ADC scheme was dropped in v2.1.
+PIN_BTN_LADDER aliased to GPIO 34, which is also the BTS7960 motor current
+sense (IS pin). The IS pin presents ~1 kΩ source impedance at all times,
+which swamps any high-impedance resistor ladder tied to the same pin —
+software multiplexing by FSM state cannot fix the impedance collision.
+See `docs/known_limitations.md` (L1) for the full analysis.
 
-```cpp
-static const Band kBands[] = {
-    {   80,  500,  HMI_CMD_RAISE        },   // ~0.3 V
-    {  600, 1100,  HMI_CMD_LOWER        },   // ~0.7 V
-    { 1200, 1900,  HMI_CMD_HOLD         },   // ~1.3 V
-    { 2000, 2700,  HMI_CMD_NEXT_SCREEN  },   // ~1.9 V
-    { 2800, 3500,  HMI_CMD_CLEAR_FAULT  },   // ~2.5 V
-};
-```
+**What this means for your work:**
+- All operator input must be implemented as on-screen LVGL buttons.
+- Add a "Next" button (top-right) on every screen to cycle MAIN → TELEMETRY → FAULTS → SETTINGS.
+- Add HMI_CMD_RAISE / HMI_CMD_LOWER / HMI_CMD_HOLD / HMI_CMD_CLEAR_FAULT as on-screen buttons in the appropriate screen (RAISE/LOWER/HOLD on MAIN, CLEAR_FAULT on FAULTS).
+- All call `hmi_cmd_post(HMI_CMD_*)` from their LVGL event callback — same as the existing CLEAR pattern in `screen_create_faults()`.
+- `input_init()` and `input_tick()` are kept as no-op stubs and are not called from any task.
 
-To recalibrate:
-1. Add `Serial.println(adc);` at the top of `input_tick()`.
-2. Press each button in turn, note the ADC reading.
-3. Set the band as ± 200 around the measured value.
-4. Remove the Serial line.
+**v3 fix path:** A 74HC4051 analog mux on the next PCB revision restores the
+front-panel buttons (and the rail monitoring). Cost ~KES 80, see `docs/known_limitations.md`.
 
 ---
 

@@ -68,7 +68,7 @@ typedef enum : uint32_t {
     FAULT_TOUCH_INIT_FAIL   = 1u << 8,   // XPT2046 did not init
     FAULT_BARRIER_TIMEOUT   = 1u << 9,   // Servo barrier did not reach target
     FAULT_RELAY_FEEDBACK    = 1u << 10,  // Relay coil energised but contact open
-    FAULT_UNDERVOLT_12V     = 1u << 11,  // 12V rail < 11.0V (via divider)
+    FAULT_UNDERVOLT_12V     = 1u << 11,  // DEPRECATED v2.1 — rail monitoring removed (see known_limitations.md). Bit reserved; never set in v2.1.
     FAULT_OVERTEMP          = 1u << 12,  // Optional NTC > 60°C
     FAULT_CONFIG_CRC        = 1u << 13,  // NVS config CRC mismatch
     FAULT_QUEUE_OVERFLOW    = 1u << 14,  // Event queue full — events dropped
@@ -206,9 +206,9 @@ typedef struct {
     int8_t          rssi_dbm;
     uint8_t         cpu_load_core0;
     uint8_t         cpu_load_core1;
-    float           rail_12v_volts;
-    float           rail_5v_volts;
-    float           rail_3v3_volts;
+    float           rail_12v_volts;         // v2.1: -1.0f sentinel — see known_limitations.md
+    float           rail_5v_volts;          // v2.1: -1.0f sentinel
+    float           rail_3v3_volts;         // v2.1: -1.0f sentinel
 
     // HMI
     uint8_t         hmi_active_screen;      // 0..4

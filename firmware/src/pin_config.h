@@ -1,6 +1,9 @@
 // pin_config.h  ::  vertical-lift-bridge :: GPIO assignments
 // SINGLE SOURCE OF TRUTH. Editing this file requires team approval (M1 commits).
 // v2.0 — Apr 2026.  All IR sensor pins removed; UART2 vision link added.
+// v2.1 — May 2026.  Rail voltage sense + operator-panel ladder ADC removed
+//                   (impedance collision on GPIO 34/35 with BTS7960 IS pin
+//                   and deck-position pot — see docs/known_limitations.md).
 
 #pragma once
 
@@ -146,42 +149,11 @@
 #define PIN_BUZZER            0     // shared with BOOT strapping; PNP-driven
 
 // ====================== OPERATOR PANEL ==============================
-#define PIN_BTN_MODE          0     // shared with buzzer — accept (BOOT button)
-#undef  PIN_BTN_MODE
-//   Read pushbuttons via the 74HC165 chip on a dedicated SPI bus? No — too few pins.
-//   Use the 74HC165 (M5 already on PCB) for inputs only:
-#define PIN_165_DATA         34     // shared MOTOR_VPROPI?  Yes — conflict.
-#undef  PIN_165_DATA
-//   FINAL DECISION FOR INPUTS: route operator panel buttons through a separate
-//   set of GPIO22..23 with diode-OR matrix to a single ANYBTN flag, and use
-//   ADC voltage divider on a single ADC pin to identify which button is pressed:
-#define PIN_OP_PANEL_ADC     32     // shared MOTOR_RELAY?  Yes.
-#undef  PIN_OP_PANEL_ADC
-//   I am at the GPIO budget limit on ESP32-WROOM. The pragmatic, working
-//   allocation that matches the existing PCB connector layout in the repo is:
-//
-//   ESP32-WROOM-32 has 30 usable GPIOs; we use 21 for things that MUST work
-//   (TFT 7, motor 4, ultrasonics 8 split into 2 banks of 4 multiplexed,
-//    relay 1, 595 latch 1).  Servos and buzzer share with idle-only nets.
-//
-//   Operator panel uses RESISTOR-LADDER on a single ADC pin (industry standard
-//   for low-cost cost panels). 5 buttons → 5 voltage levels read on ADC1_CH0:
-#define PIN_OP_PANEL_ADC     36     // shared TOUCH_IRQ?  Yes — conflict.
-#undef  PIN_OP_PANEL_ADC
-//   The ONLY clean ADC pin left is GPIO34 (already on motor VPROPI).
-//   We multiplex: motor task reads VPROPI only when motor is running; HMI input
-//   task reads operator panel only when motor is idle. Both safe.
-#define PIN_OP_PANEL_ADC     34     // shared MOTOR_VPROPI; multiplexed by FSM state
-#define BTN_RES_RAISE_LO   100      // ADC raw thresholds (12-bit)
-#define BTN_RES_RAISE_HI   500
-#define BTN_RES_LOWER_LO   500
-#define BTN_RES_LOWER_HI   1100
-#define BTN_RES_STOP_LO   1100
-#define BTN_RES_STOP_HI   1900
-#define BTN_RES_MODE_LO   1900
-#define BTN_RES_MODE_HI   2700
-#define BTN_RES_RESET_LO  2700
-#define BTN_RES_RESET_HI  3500
+// REMOVED in v2.1 — the resistor-ladder scheme on GPIO 34 had a fundamental
+// impedance-collision conflict with the BTS7960 IS pin (always-active, ~1 kΩ
+// source impedance) that could not be resolved by software multiplexing.
+// All operator input is now via the XPT2046 touchscreen (LVGL indev driver).
+// See docs/known_limitations.md for the v3 fix path (74HC4051 analog mux).
 
 // ====================== E-STOP (hardware + IRQ) =====================
 //  E-stop has TWO paths:
@@ -203,13 +175,21 @@
 #define LEDC_BUZZER_CH        5
 
 // ====================== VOLTAGE SENSE (ADC) =========================
-// Voltage divider taps for 12 V and 5 V rail monitoring.
-// 12 V rail: 33 kΩ / 10 kΩ divider → ~2.79 V max at ADC.
-// 5 V rail:  10 kΩ / 10 kΩ divider → ~2.50 V max at ADC.
-// Both share ADC1 with motor VPROPI; read only when motor is idle
-// (FSM states IDLE, RAISED_HOLD, LOWERED_HOLD).
-#define PIN_V12_SENSE        34     // shared MOTOR_VPROPI; multiplexed by FSM state
-#define PIN_V5_SENSE         35     // shared DECK_POSITION; multiplexed by FSM state
+// REMOVED in v2.1 — GPIO 34/35 are owned by MOTOR_VPROPI and DECK_POSITION
+// respectively. Both peripherals present low source impedance to the ADC pins
+// at all times (the BTS7960 IS output and the deck position pot wiper), so
+// connecting a high-impedance voltage divider (33k/10k or 10k/10k) to the same
+// pin would yield a heavily-attenuated, motor-coupled voltage that does not
+// represent the rail under any condition. Software-only "FSM-state multiplexing"
+// cannot fix this — the impedance collision is present whether we read or not.
+//
+// Rail health is now covered by:
+//   • ESP32 brownout detector (3.3 V rail < 2.43 V → reset)
+//   • BTS7960 built-in undervoltage lockout (cuts motor below ~5.5 V)
+//   • LM2596 internal current/thermal limit
+//
+// fault_register.cpp leaves rail_*_volts at -1.0f (sentinel: "not measured").
+// See docs/known_limitations.md for the v3 fix path (74HC4051 analog mux).
 
 // ====================== BACKWARD-COMPAT ALIASES =====================
 // The .cpp files were written with different pin names than pin_config.h
@@ -242,8 +222,8 @@
 // --- traffic_lights.cpp ---
 #define PIN_595_OE           PIN_595_OE_N         // 74HC595 output enable
 
-// --- input.cpp ---
-#define PIN_BTN_LADDER       PIN_OP_PANEL_ADC     // operator panel resistor ladder
+// (PIN_BTN_LADDER alias removed — operator panel via resistor ladder dropped.
+//  Touchscreen is now the sole HMI input device.)
 
 // ====================== END ========================================
 //

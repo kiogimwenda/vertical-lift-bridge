@@ -2,8 +2,22 @@
 // safety/fault_register.cpp — Central fault evaluation.
 // Owner: M5 Ian
 //
-// Reads voltage rails, evaluates fault_flags from g_status, and emits
-// EVT_FAULT_RAISED to the FSM the first time any flag becomes set.
+// Aggregates fault flags from g_status and emits EVT_FAULT_RAISED to the FSM
+// the first time any flag becomes set (rising edge), and EVT_FAULT_CLEARED
+// on the falling edge.
+//
+// NOTE on rail monitoring: 12 V / 5 V rail ADC reads were removed in v2.1
+// because the only available ADC pins (GPIO 34/35) are already owned by the
+// BTS7960 IS pin and the deck-position potentiometer, which present low
+// source impedance at all times. A high-impedance voltage divider on the same
+// pin would be swamped by the motor sense circuitry — software-only
+// multiplexing cannot fix the analog conflict. Brownout protection now
+// relies on:
+//   • ESP32 internal brownout detector
+//   • BTS7960 built-in undervoltage lockout
+//   • LM2596 thermal/current limit
+// rail_*_volts fields remain in SharedStatus_t but are set to -1.0f (sentinel
+// meaning "not measured"). See docs/known_limitations.md.
 // ============================================================================
 #include "fault_register.h"
 #include "../system_types.h"
@@ -12,39 +26,22 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-// Voltage divider: 12V rail through 33k/10k -> ADC sees ~2.79V max.
-// adc_count * (3.3/4095) * (1+33/10) = volts
-#define V12_DIVIDER_RATIO   4.3f      // (33+10)/10
-#define V5_DIVIDER_RATIO    2.0f      // (10+10)/10
-
 static uint32_t s_last_flags = 0;
 
 void fault_register_init(void) {
-    pinMode(PIN_V12_SENSE, INPUT);
-    pinMode(PIN_V5_SENSE,  INPUT);
-    analogSetPinAttenuation(PIN_V12_SENSE, ADC_11db);
-    analogSetPinAttenuation(PIN_V5_SENSE,  ADC_11db);
     s_last_flags = 0;
-    Serial.println("[fault] init OK");
+    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        g_status.rail_12v_volts = -1.0f;   // sentinel: not measured
+        g_status.rail_5v_volts  = -1.0f;
+        g_status.rail_3v3_volts = -1.0f;
+        xSemaphoreGive(g_status_mutex);
+    }
+    Serial.println("[fault] init OK (rail monitoring disabled — see known_limitations.md)");
 }
 
 void fault_register_evaluate(void) {
-    // Read rails
-    uint32_t a12 = 0, a5 = 0;
-    for (int i = 0; i < 4; i++) { a12 += analogRead(PIN_V12_SENSE); a5 += analogRead(PIN_V5_SENSE); }
-    a12 >>= 2; a5 >>= 2;
-    float v12 = (a12 * 3.3f / 4095.0f) * V12_DIVIDER_RATIO;
-    float v5  = (a5  * 3.3f / 4095.0f) * V5_DIVIDER_RATIO;
-
     uint32_t flags_now = 0;
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        g_status.rail_12v_volts = v12;
-        g_status.rail_5v_volts  = v5;
-        g_status.rail_3v3_volts = 3.30f;        // Regulator output, untrimmed
-
-        if (v12 < 11.0f) SET_FAULT(g_status.fault_flags, FAULT_UNDERVOLT_12V);
-        else             CLR_FAULT(g_status.fault_flags, FAULT_UNDERVOLT_12V);
-
         flags_now = g_status.fault_flags;
         xSemaphoreGive(g_status_mutex);
     }
@@ -92,7 +89,7 @@ const char* fault_register_first_name(uint32_t flags) {
     if (flags & FAULT_TOUCH_INIT_FAIL)  return "touch-init";
     if (flags & FAULT_BARRIER_TIMEOUT)  return "barrier-to";
     if (flags & FAULT_RELAY_FEEDBACK)   return "relay-fb";
-    if (flags & FAULT_UNDERVOLT_12V)    return "uv-12v";
+    if (flags & FAULT_UNDERVOLT_12V)    return "uv-12v(deprecated)";
     if (flags & FAULT_OVERTEMP)         return "overtemp";
     if (flags & FAULT_CONFIG_CRC)       return "cfg-crc";
     if (flags & FAULT_QUEUE_OVERFLOW)   return "q-ovf";
