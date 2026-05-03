@@ -23,7 +23,7 @@ static size_t   s_rx_len = 0;
 static VisionStatus_t s_vs = {};
 
 static void parse_line(const char* line, size_t len) {
-    StaticJsonDocument<256> doc;
+    JsonDocument doc;
     auto err = deserializeJson(doc, line, len);
     if (err) return;
     s_vs.vehicle_present = doc["v"]   | 0;
