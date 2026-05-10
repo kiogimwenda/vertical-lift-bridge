@@ -9,7 +9,7 @@
 // History: v2.1 stubbed input_init/input_tick to no-ops because PIN_BTN_LADDER
 // shared GPIO 34 with the BTS7960 IS pin (impedance collision, see
 // docs/known_limitations.md L1). The v2.2 motor-driver migration to the
-// L293L module removed that conflict, so the resistor-ladder scheme is
+// L293D module removed that conflict, so the resistor-ladder scheme is
 // restored alongside the touchscreen as a defence-in-depth input path.
 #pragma once
 

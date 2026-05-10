@@ -11,15 +11,15 @@
 // pot — neither pin is available for a high-impedance voltage divider.
 // Brownout protection therefore relies on hardware layers only:
 //   • ESP32 internal brownout detector (3.3 V rail < 2.43 V → reset)
-//   • L293L internal thermal-shutdown (cuts H-bridge on overheat)
+//   • L293D internal thermal-shutdown (cuts H-bridge on overheat)
 //   • LM1084 buck-module internal current/thermal limit
 // rail_*_volts fields remain in SharedStatus_t but are set to -1.0f
 // (sentinel: "not measured"). See docs/known_limitations.md.
 //
-// NOTE on motor current (v2.2): the L293L module has no current-sense
+// NOTE on motor current (v2.2): the L293D module has no current-sense
 // output, so FAULT_OVERCURRENT is also never set in v2.2. Motor abuse is
 // caught by FAULT_STALL (no position change while energised) and the
-// L293L's own thermal cutout.
+// L293D's own thermal cutout.
 // ============================================================================
 #include "fault_register.h"
 #include "../system_types.h"

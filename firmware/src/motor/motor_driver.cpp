@@ -1,20 +1,27 @@
 // ============================================================================
-// motor/motor_driver.cpp — L293L module H-bridge control
+// motor/motor_driver.cpp — L293D module H-bridge control
 // + position estimate from a 10 kΩ deck-position potentiometer.
 // Owner: M2 Eugene (Mechanism)
 //
 // Pin mapping (see pin_config.h):
 //   MOT_IN1 (forward/up)    — GPIO25  (LEDC ch0, 13-bit, 20 kHz)
 //   MOT_IN2 (reverse/down)  — GPIO26  (LEDC ch1, 13-bit, 20 kHz)
-//   MOT_EN                  — tied high to +5 V on the L293L module
+//   MOT_EN                  — tied high to +5 V on the L293D module
 //                             (PWM rides on IN1/IN2 directly)
 //   DECK_POSITION           — GPIO35  (ADC1_CH7, potentiometer wiper)
 //   LIMIT_ANYHIT            — GPIO39  (diode-OR of all limit switches)
 //
-// Note on motor current sensing: the L293L module specified in the BOM has
-// no current-sense output. FAULT_OVERCURRENT is therefore not raised by
-// firmware — the L293L's internal thermal-shutdown handles abuse, and the
-// stall detector below covers the dominant failure mode.
+// Channel paralleling: the L293D's two internal channels are wired in
+// parallel on the PCB (IN1↔IN3, IN2↔IN4, EN1↔EN2; OUT1↔OUT3, OUT2↔OUT4)
+// to lift the 600 mA single-channel rating to 1.2 A continuous / 2.4 A
+// peak — necessary headroom for the JGA25-370's ~600 mA nominal draw.
+// The firmware sees only IN1/IN2; the parallelisation is a hardware-only
+// change and requires no driver code adjustments.
+//
+// Note on motor current sensing: the L293D has no current-sense output.
+// FAULT_OVERCURRENT is therefore not raised by firmware — the L293D's
+// internal thermal-shutdown handles abuse, and the stall detector below
+// covers the dominant failure mode.
 //
 // Counts/mm calibration is captured in CAL_COUNTS_PER_MM. Re-run the
 // calibration sketch (member guide M2) on each new gearmotor batch.
@@ -41,6 +48,7 @@
 // PLACEHOLDER: M2 Eugene must re-measure on hardware and update.
 // ---------------------------------------------------------------------------
 #define CAL_COUNTS_PER_MM      14      // From bench measurement (M2 §7)
+#define CAL_ADC_ZERO_DEFAULT   400     // Absolute baseline ADC reading at physical 0mm
 
 // ---------------------------------------------------------------------------
 // State
@@ -69,20 +77,17 @@ void motor_driver_init(void) {
     ledcWrite(LEDC_CH_IN1, 0);
     ledcWrite(LEDC_CH_IN2, 0);
 
-    // ADC for deck-position pot (motor current sense not present on L293L)
+    // ADC for deck-position pot (motor current sense not present on L293D)
     analogReadResolution(12);
     analogSetPinAttenuation(PIN_DECK_POSITION, ADC_11db); // 0..3.3 V
 
-    // Seed the auto-zero reference from a 4-sample average at boot. This
-    // assumes the deck is parked at the mechanical bottom on power-up
-    // (the system spends most of its life there). A subsequent bottom-
-    // limit hit re-zeros precisely; until then we're at most one cycle
-    // away from a true zero.
-    uint32_t adc_sum = 0;
-    for (int i = 0; i < 4; i++) adc_sum += analogRead(PIN_DECK_POSITION);
-    s_adc_zero = (int32_t)(adc_sum >> 2);
+    // The 10k pot is an absolute encoder. Seeding `s_adc_zero` dynamically
+    // at boot causes a critical failure in limit-switch discrimination if the
+    // bridge is booted while raised. We MUST rely on a hardcoded absolute
+    // calibration zero, which is then fine-tuned on the first bottom-limit hit.
+    s_adc_zero = CAL_ADC_ZERO_DEFAULT;
 
-    Serial.printf("[motor] init OK (L293L module, no current-sense, adc_zero=%ld)\n",
+    Serial.printf("[motor] init OK (L293D module, no current-sense, adc_zero=%ld)\n",
                   (long)s_adc_zero);
 }
 
@@ -101,7 +106,7 @@ void motor_driver_apply(const MotorCommand_t& cmd) {
         ledcWrite(LEDC_CH_IN2, s_duty);
         break;
     case MOTOR_BRAKE:
-        // Dynamic short-brake on the L293L: drive both half-bridges to the
+        // Dynamic short-brake on the L293D: drive both half-bridges to the
         // same rail (here: both inputs HIGH = both motor terminals at +Vmot).
         // The motor sees zero terminal-to-terminal voltage and the back-EMF
         // is shorted through the high-side switches, braking the rotor.
@@ -176,8 +181,8 @@ void motor_driver_tick(void) {
     bool pos_bad = (pos32_raw < -10) || (pos32_raw > DECK_HEIGHT_MAX_MM + 15);
 
     // Push to shared status. motor_current_ma stays at 0 (no IS pin on
-    // L293L); FAULT_OVERCURRENT is therefore never raised by firmware in
-    // v2.2 — the L293L's internal thermal shutdown is the safety net.
+    // L293D); FAULT_OVERCURRENT is therefore never raised by firmware in
+    // v2.2 — the L293D's internal thermal shutdown is the safety net.
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.deck_position_mm = pos_mm;
         g_status.motor_current_ma = 0;

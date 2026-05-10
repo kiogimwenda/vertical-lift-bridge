@@ -19,7 +19,7 @@
                                        │
                           ┌────────────┴────────────┐
                           ▼                         ▼
-                  LM1084-5 V buck module     L293L module Vmot
+                  LM1084-5 V buck module     L293D module Vmot
                        (5 V, 5 A)             (motor 12 V via relay NO)
                           │
                     ┌─────┴─────┐
@@ -43,8 +43,8 @@
                     │ ─ external SD?   │             │ ─ BTN-LADDER │
                     │                  │             │   (ADC1_CH6) │
                     │ I2C (free)       │             │ LEDC PWM     │
-                    │                  │             │ ─ L293L IN1  │
-                    │                  │             │ ─ L293L IN2  │
+                    │                  │             │ ─ L293D IN1  │
+                    │                  │             │ ─ L293D IN2  │
                     │                  │             │ ─ TFT BL     │
                     │                  │             │              │
                     │                  │             │ Shift register│
@@ -70,17 +70,17 @@
 | Board outline | 100.00 × 80.00 mm rectangular, 1.0 mm corner radius | Locked from repo (L5); fits standard JLCPCB economy slot, fits PCB enclosure (11_pcb_enclosure.scad) with 0.3 mm clearance |
 | Layer count | **2-layer** (top + bottom) | Sufficient for low-density 3.3 V signalling + single 12 V power rail |
 | Substrate | FR4 TG130 (default), 1.6 mm | Mechanical rigidity for connector forces |
-| Copper weight | **1 oz/ft² (35 µm)** both layers | Standard, free at JLCPCB; trace 1 mm @ 1 oz handles 2.5 A (>2 A peak L293L) |
+| Copper weight | **1 oz/ft² (35 µm)** both layers | Standard, free at JLCPCB; trace 1 mm @ 1 oz handles 2.5 A (>2 A peak L293D) |
 | Surface finish | HASL lead-free | Cheapest at JLCPCB (free); compatible with hand soldering |
 | Solder mask | **Matte black** | Free, helps silkscreen contrast; tier-2 finish |
 | Silkscreen | **White** | All component refdes + project ident "VLB-G7 v2.0" + GitHub QR code in bottom-right |
 | Trace width — signal | **0.25 mm** (10 mil) | Comfortable hand-soldering and JLCPCB minimum |
 | Trace width — 3.3 V | **0.40 mm** (16 mil) | <300 mA total |
 | Trace width — 5 V | **1.00 mm** (40 mil) | Up to 5 A from LM1084 module (BOM line 4) |
-| Trace width — 12 V (motor) | **1.50 mm** (60 mil) | Peak ~1.5 A under L293L stall (rail-limited by L293L thermal) |
+| Trace width — 12 V (motor) | **1.50 mm** (60 mil) | Peak ~1.5 A under L293D stall (rail-limited by L293D thermal) |
 | Trace clearance | **0.20 mm** (8 mil) | JLCPCB economy minimum |
 | Via — signal | drill 0.30 / pad 0.60 mm | Standard |
-| Via — power | drill 0.40 / pad 0.80 mm; thermal vias 5× under the L293L module footprint and 4× under each LM1084 buck-module header | Heat dissipation |
+| Via — power | drill 0.40 / pad 0.80 mm; thermal vias 5× under the L293D module footprint and 4× under each LM1084 buck-module header | Heat dissipation |
 | Bottom layer | **Solid GND pour** | Star-ground at the LM1084 main-buck GND pin |
 | Top layer | **GND pour everywhere not signal/power** | Reduces EMI; backs antenna keep-out |
 | Antenna keep-out | **7 × 30 mm** at top edge near ESP32 | ESP32 datasheet §5.5 keep-out |
@@ -89,7 +89,7 @@
 | Connectors at bottom edge | 5× JST-XH 2-pin (SR04 trig/echo, IR-removed/spare, motor, servo, ESP-CAM UART) | Ribbon to off-board peripherals |
 | Connectors at left edge | JST-XH 4-pin (TFT 8-wire fan-out via 2 connectors), JST-XH 2-pin (E-stop) | Operator panel side |
 | Connectors at right edge | 1.27 mm 2×3 ICSP (JTAG) header | Optional debug |
-| Test points | TP1 (3V3), TP2 (5V), TP3 (12V), TP4 (V5_CAM), TP5 (GND), TP6 (BTN_LADDER) | Hand probing — note: no VPROPI in v2.2 (L293L lacks IS) |
+| Test points | TP1 (3V3), TP2 (5V), TP3 (12V), TP4 (V5_CAM), TP5 (GND), TP6 (BTN_LADDER) | Hand probing — note: no VPROPI in v2.2 (L293D lacks IS) |
 | Fiducial marks | None (hand-assembled) | n/a |
 
 ## 5.3 TFT display + touch wiring on the PCB
@@ -215,7 +215,7 @@ The BOM (lines 17 + 18) provides 6 tactile buttons and a 5 × 1 kΩ resistor kit
 | BTN5 | 0.30 V |  372 ± 80 | HMI_CMD_NEXT_SCREEN |
 
 The ladder is feasible in v2.2 because the BTS7960 IS pin (the original
-v2.0 conflict source) was eliminated by migrating to the L293L module.
+v2.0 conflict source) was eliminated by migrating to the L293D module.
 GPIO 34 now sees only the ladder; the deck-position pot stays on
 GPIO 35 with no shared pin. Decoupling: 100 nF X7R cap from the ADC
 node to GND, placed within 5 mm of the ESP32 pad, suppresses ringing
@@ -241,7 +241,7 @@ pcb/kicad-project/
 ├── PowerSupply.kicad_sch                ← +12 V → +5 V LM1084 module → +3.3 V AMS1117 + V5_CAM dedicated buck
 ├── ESP32Module.kicad_sch                ← ESP32-WROOM-32E module on female headers, 10 kΩ pull-up on GPIO 39
 ├── USBProgramming.kicad_sch             ← CH340G + USB-C + auto-reset DTR/RTS pair
-├── MotorDriver.kicad_sch                ← L293L module 8-pin logic header + screw terminal
+├── MotorDriver.kicad_sch                ← L293D module 8-pin logic header + screw terminal
 ├── ShiftRegLights.kicad_sch             ← 74HC595 (DIP-16 socket) + 6 traffic LEDs (0805 SMD)
 ├── ConnectorsSafety.kicad_sch           ← JST-XH headers, SRD-05VDC relay, ULN2803 ×2, E-stop ladder, button ladder, polyfuse
 └── TFT_Camera.kicad_sch                 ← TFT 14-pin header, touch IRQ, ESP32-CAM 4-pin connector, ULN2803 backlight channel
@@ -271,7 +271,7 @@ pcb/kicad-project/
 | ESP32-CAM (camera streaming) | 5 V | – | 240 | AI-Thinker datasheet |
 | JGA25-370 motor (12 V, free run) | 12 V | – | 130 | Datasheet |
 | JGA25-370 motor (12 V, normal) | 12 V | – | 350 | Measured under counterweight |
-| JGA25-370 motor (12 V, stall) | 12 V | – | 2200 | Datasheet (L293L thermal-limits at ~2 A continuous; brief stall transients absorbed by the SS54 freewheel pair) |
+| JGA25-370 motor (12 V, stall) | 12 V | – | 2200 | Datasheet (L293D thermal-limits at ~2 A continuous; brief stall transients absorbed by the SS54 freewheel pair) |
 
 **Rail totals:**
 

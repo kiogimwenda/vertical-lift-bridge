@@ -72,19 +72,13 @@ static VehicleDirection_t infer_direction(const uint8_t* hist_a,
 }
 
 void sensors_ultrasonic_init(void) {
-    pinMode(PIN_US1_TRIG, OUTPUT);
+    pinMode(PIN_US_TRIG, OUTPUT);
     pinMode(PIN_US1_ECHO, INPUT);
-    pinMode(PIN_US2_TRIG, OUTPUT);
     pinMode(PIN_US2_ECHO, INPUT);
-    pinMode(PIN_US3_TRIG, OUTPUT);
     pinMode(PIN_US3_ECHO, INPUT);
-    pinMode(PIN_US4_TRIG, OUTPUT);
     pinMode(PIN_US4_ECHO, INPUT);
-    digitalWrite(PIN_US1_TRIG, LOW);
-    digitalWrite(PIN_US2_TRIG, LOW);
-    digitalWrite(PIN_US3_TRIG, LOW);
-    digitalWrite(PIN_US4_TRIG, LOW);
-    Serial.println("[us] init OK (4 sensors, upstream + downstream)");
+    digitalWrite(PIN_US_TRIG, LOW);
+    Serial.println("[us] init OK (4 sensors, shared trigger)");
 }
 
 void sensors_ultrasonic_tick(void) {
@@ -95,16 +89,16 @@ void sensors_ultrasonic_tick(void) {
 
     switch (slot) {
     case 0:
-        s_us.distance_us1_cm = measure_cm(PIN_US1_TRIG, PIN_US1_ECHO);
+        s_us.distance_us1_cm = measure_cm(PIN_US_TRIG, PIN_US1_ECHO);
         break;
     case 1:
-        s_us.distance_us2_cm = measure_cm(PIN_US2_TRIG, PIN_US2_ECHO);
+        s_us.distance_us2_cm = measure_cm(PIN_US_TRIG, PIN_US2_ECHO);
         break;
     case 2:
-        s_us.distance_us3_cm = measure_cm(PIN_US3_TRIG, PIN_US3_ECHO);
+        s_us.distance_us3_cm = measure_cm(PIN_US_TRIG, PIN_US3_ECHO);
         break;
     case 3:
-        s_us.distance_us4_cm = measure_cm(PIN_US4_TRIG, PIN_US4_ECHO);
+        s_us.distance_us4_cm = measure_cm(PIN_US_TRIG, PIN_US4_ECHO);
         break;
     }
 

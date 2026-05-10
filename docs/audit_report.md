@@ -23,7 +23,7 @@
 ## Revised architecture (v2.2 — adopted)
 - **Towers:** 2 (left + right) with MGN12 linear rails
 - **Drive:** Same JGA25-370, but driving a Ø30 mm cable drum
-- **Motor driver:** L293L 2 A H-bridge module (BOM line 2). Earlier v2.0 work
+- **Motor driver:** L293D 2 A H-bridge module (BOM line 2). Earlier v2.0 work
   used a BTS7960 43 A driver; v2.2 right-sized the H-bridge to match the
   ~600 mA nominal load and freed GPIO 34 for the operator-panel resistor
   ladder.
@@ -34,11 +34,11 @@
   deck-position pot reading
 - **Faults:** 16-flag bitmask register, edge-triggered events, software watchdog
   (FAULT_OVERCURRENT and FAULT_UNDERVOLT_12V are reserved-but-unset in v2.2 —
-  the L293L has no IS pin and the GPIO 34/35 ADCs are taken)
+  the L293D has no IS pin and the GPIO 34/35 ADCs are taken)
 
 ## Why the change
 1. **Mechanical reliability** — single-stage cable system has only the drum keyway as a sync point.
-2. **Motor sizing** — counterweight reduces nominal lift current from ~1500 mA to ~600 mA, comfortably inside the L293L's 2 A continuous rating with margin for stall transients.
+2. **Motor sizing** — counterweight reduces nominal lift current from ~1500 mA to ~600 mA, comfortably inside the L293D's 2 A continuous rating with margin for stall transients.
 3. **Sensor reliability** — vision over UART JSON is observable and debuggable; IR analog levels are not.
 4. **Safety** — physical limit switches override any software estimate, fail-safe to STOP. Hardware-relay E-stop in series with motor B+ is independent of any firmware path.
 5. **Footprint reduction** — 1200 × 600 mm vs original ~1500 × 800 mm (smaller demo table).
@@ -47,8 +47,8 @@
 ## Migration impact
 - All 4-tower CAD parts deprecated; 13 new OpenSCAD parts created.
 - Motor calibration constant `CAL_COUNTS_PER_MM` now expresses ADC-counts per mm of deck travel (the 10 kΩ pot wiper drives `PIN_DECK_POSITION` on GPIO 35). Worked-example default in `motor_driver.cpp` is 14; M2 measures the per-rig value with the calibration sketch in member guide §7.
-- PCB schematic (v2.2 KiCad 10 rebuild): adds J7 4-pin JST-XH for ESP32-CAM; IR analog inputs deleted; BTS7960 connector replaced with L293L 6-pin logic header + 4-pin screw-terminal block.
-- BOM: removed 4× lead screw, 4× pulley, 2× belt; added 2× counterweight, ESP32-CAM, 2× MGN12 rail, L293L module, dedicated CAM 5 V buck, 2× ULN2803.
+- PCB schematic (v2.2 KiCad 10 rebuild): adds J7 4-pin JST-XH for ESP32-CAM; IR analog inputs deleted; BTS7960 connector replaced with L293D 6-pin logic header + 4-pin screw-terminal block.
+- BOM: removed 4× lead screw, 4× pulley, 2× belt; added 2× counterweight, ESP32-CAM, 2× MGN12 rail, L293D module, dedicated CAM 5 V buck, 2× ULN2803.
 
 ## Sign-off
 This audit was discussed and approved by all 5 group members on the date of the revised proposal commit.

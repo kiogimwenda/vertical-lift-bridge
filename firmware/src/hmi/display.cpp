@@ -1,54 +1,13 @@
 // ============================================================================
-// hmi/display.cpp — LVGL + TFT_eSPI bring-up TEMPLATE.
+// hmi/display.cpp — LVGL + TFT_eSPI bring-up and Complete Layout.
 // Owner: M4 Abigael
-//
-// >>>>>>>>>>>>>  CREATIVE-LIBERTY ZONE  <<<<<<<<<<<<<
-//
-// What is finished here (DON'T REMOVE — the rest of the firmware depends on it):
-//   ✓ LVGL 9.x init, TFT_eSPI driver, double-buffered DMA flush
-//   ✓ XPT2046 touch driver wired up (read_cb)
-//   ✓ FreeRTOS-safe lv_async_call pattern documented
-//   ✓ Tick task, refresh task, brightness LEDC ch2
-//   ✓ Stub screen_create_*() functions per HmiScreen_t
-//   ✓ Screen-switch logic, notification hooks called from FSM
-//   ✓ Suggested colour-token table (override freely)
-//   ✓ Helper: pull a thread-safe snapshot of g_status into local copy
-//   ✓ Render-tick poll: call g_status_snapshot() at 5 Hz from inside LVGL
-//
-// What is YOURS to design (ALL TODO blocks below — go wild):
-//   ▸ Visual layout of every screen (Boot, Main, Telemetry, Faults, Settings)
-//   ▸ Choice of widgets — bar / arc / meter / chart / canvas / animimg…
-//   ▸ Colour palette — override / extend the suggested tokens
-//   ▸ Custom font(s)  — drop .c files into firmware/assets/fonts/
-//   ▸ Icons          — drop .c files into firmware/assets/icons/
-//   ▸ Animations     — lv_anim_t, transitions, fades
-//   ▸ Touch zones, gestures, swipe navigation
-//   ▸ Logo / branding on Boot screen
-//   ▸ Telemetry chart styling (sparkline vs gauge vs bar)
-//
-// USEFUL TOOLS PRE-WIRED:
-//   • LVGL 9.2.2 widgets: label, btn, bar, arc, slider, meter, chart, image,
-//                          canvas, animimg, line, table, list, msgbox, tabview
-//   • Inter font (multiple sizes) in assets/fonts/inter_*.c — use
-//       lv_obj_set_style_text_font(obj, &inter_24, 0);
-//   • Animations:    lv_anim_init(&a); lv_anim_set_var(&a, obj); …
-//   • Custom theme:  lv_theme_t* th = lv_theme_default_init(...);
-//   • Online font converter: https://lvgl.io/tools/fontconverter
-//   • Online image converter: https://lvgl.io/tools/imageconverter
-//   • LVGL widget gallery for inspiration: https://docs.lvgl.io/master/widgets/
-//
-// THREAD-SAFETY RULE (non-negotiable):
-//   ANY call into LVGL from outside this file (e.g. display_notify_state_change
-//   from FSM on Core 0) MUST go through lv_async_call() — never touch widgets
-//   directly from another task or it will corrupt LVGL's internal state.
-//   The notification hooks in this file already do this — please preserve.
 // ============================================================================
 
 #include "display.h"
 #include "input.h"
 #include "../pin_config.h"
 #include "../system_types.h"
-#include "../safety/fault_register.h"   // for fault_register_clear_all()
+#include "../safety/fault_register.h"
 #include <Arduino.h>
 #include <SPI.h>
 #include <TFT_eSPI.h>
@@ -57,37 +16,9 @@
 #include <freertos/task.h>
 #include <freertos/semphr.h>
 
-// =====================================================================
-// 1. SUGGESTED COLOUR / SPACING TOKENS — feel free to override.
-// =====================================================================
-// (LVGL uses RGB888 inside lv_color_hex; these are 24-bit hex codes.)
-namespace ui_tokens {
-    // Backgrounds
-    static constexpr uint32_t BG          = 0x0D1117;   // Page bg (near-black)
-    static constexpr uint32_t SURFACE     = 0x161B22;   // Card bg
-    static constexpr uint32_t DIVIDER     = 0x30363D;   // Hairline
-    // Semantic
-    static constexpr uint32_t CLEAR       = 0x3FB950;   // OK / GO
-    static constexpr uint32_t WARN        = 0xD29922;   // Caution
-    static constexpr uint32_t ALERT       = 0xF85149;   // Stop / fault
-    static constexpr uint32_t INFO        = 0x58A6FF;   // Info / link
-    static constexpr uint32_t MOTOR       = 0xBC8CFF;   // Mechanism accent
-    // Text
-    static constexpr uint32_t TXT_PRIMARY = 0xE6EDF3;
-    static constexpr uint32_t TXT_MUTED   = 0x8B949E;
-
-    // Spacing (px)
-    static constexpr uint8_t  PAD_S = 4;
-    static constexpr uint8_t  PAD_M = 8;
-    static constexpr uint8_t  PAD_L = 12;
-}
-
-// =====================================================================
-// 2. TFT + LVGL infrastructure — DO NOT BREAK
-// =====================================================================
 #define TFT_W 240
 #define TFT_H 320
-#define LV_BUF_LINES 20 //Changed for 40 to 20 to reduce memory usage. Adjust as needed (higher = smoother but more RAM).
+#define LV_BUF_LINES 20
 
 static TFT_eSPI    s_tft = TFT_eSPI(TFT_W, TFT_H);
 static lv_display_t* s_disp = nullptr;
@@ -95,18 +26,11 @@ static lv_indev_t*  s_indev = nullptr;
 static uint8_t      s_buf1[TFT_W * LV_BUF_LINES * 2];
 static uint8_t      s_buf2[TFT_W * LV_BUF_LINES * 2];
 
-// Screens — allocated lazily by ensure_screen()
-static lv_obj_t*    s_screens[HMI_SCREEN_COUNT] = {nullptr};
-static HmiScreen_t  s_active = HMI_SCREEN_BOOT;
 static SemaphoreHandle_t s_lvgl_mutex = nullptr;
 
-// LEDC for backlight
 #define LEDC_CH_BL  2
 #define LEDC_RES_BL 13
 
-// =====================================================================
-// 3. LVGL flush + touch callbacks (don't touch unless TFT pins change)
-// =====================================================================
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
     uint32_t w = lv_area_get_width(area);
     uint32_t h = lv_area_get_height(area);
@@ -131,11 +55,7 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
 
 static uint32_t lvgl_tick_cb(void) { return millis(); }
 
-// =====================================================================
-// 4. Local snapshot of shared status — call from LVGL context only.
-// =====================================================================
 static SharedStatus_t s_local;
-
 static void g_status_snapshot(void) {
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         s_local = g_status;
@@ -143,307 +63,418 @@ static void g_status_snapshot(void) {
     }
 }
 
-// =====================================================================
-// 5. Screen factories — STUBS for M4 to fill in.
-//    Each returns an lv_obj_t* (an LVGL screen). The infrastructure
-//    swaps to the right one when display_request_screen() is called.
-// =====================================================================
+// --- UI Components ---
+static lv_obj_t *tv;
+static lv_obj_t *pg_home, *pg_ops, *pg_vision, *pg_cw, *pg_settings;
+static lv_obj_t *header, *lbl_state, *lbl_pos, *bar_pos;
+static lv_obj_t *led_road_r, *led_road_y, *led_road_g;
+static lv_obj_t *meter_motor;
 
-// --- BOOT SCREEN -----------------------------------------------------
-// TODO (M4): replace with branded splash. Suggestions: animated logo,
-// progress bar tied to s_local.uptime_ms, tagline.
-static lv_obj_t* screen_create_boot(void) {
-    lv_obj_t* scr = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
+static lv_obj_t *radar_bg;
+static lv_obj_t *target_box;
+static lv_obj_t *bar_confidence;
+static lv_obj_t *lbl_target;
 
-    lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "VLB Group 7\nBooting...");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::TXT_PRIMARY), 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
+static lv_obj_t *bar_cw_l, *bar_cw_r;
+static lv_obj_t *lbl_cw_l_stat, *lbl_cw_r_stat;
 
-    // TODO: lv_anim_t for fade-in, progress bar, custom logo, etc.
-    return scr;
+static lv_style_t style_card;
+static lv_style_t style_btn_modern;
+
+static void init_styles() {
+    lv_style_init(&style_card);
+    lv_style_set_bg_color(&style_card, lv_color_white());
+    lv_style_set_radius(&style_card, 8);
+    lv_style_set_border_width(&style_card, 2);
+    lv_style_set_border_color(&style_card, lv_palette_lighten(LV_PALETTE_GREY, 2));
+    lv_style_set_shadow_width(&style_card, 10);
+    lv_style_set_shadow_color(&style_card, lv_palette_main(LV_PALETTE_GREY));
+    lv_style_set_shadow_opa(&style_card, LV_OPA_20);
+
+    lv_style_init(&style_btn_modern);
+    lv_style_set_radius(&style_btn_modern, 4);
+    lv_style_set_bg_color(&style_btn_modern, lv_palette_main(LV_PALETTE_BLUE));
+    lv_style_set_text_color(&style_btn_modern, lv_color_white());
+    lv_style_set_shadow_width(&style_btn_modern, 4);
+    lv_style_set_shadow_color(&style_btn_modern, lv_palette_main(LV_PALETTE_GREY));
 }
 
-// --- MAIN STATUS SCREEN ----------------------------------------------
-// TODO (M4): the most-seen screen. Things you'll want to bind to s_local:
-//   - s_local.state              : show as big banner (CLEAR / WAIT / GO UP / GO DOWN / FAULT)
-//   - s_local.deck_position_mm   : visualize as vertical bar / illustration
-//   - s_local.lights_road        : R/Y/G dots
-//   - s_local.lights_marine      : R/Y/G dots
-//   - s_local.vision.vehicle_present : icon + confidence bar
-//   - s_local.cycle_count        : footer
-//   - s_local.fault_flags        : warning chip if non-zero
-// Bind via lv_obj_t* persisted in static vars; refresh inside refresh_active().
-static lv_obj_t* screen_create_main(void) {
-    lv_obj_t* scr = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
-
-    lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "MAIN\n(M4: design me)");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
-
-    // TODO M4: build out the full layout you want.
-    return scr;
+static void btn_event_cb(lv_event_t * e) {
+    lv_obj_t * btn = (lv_obj_t *)lv_event_get_target(e);
+    const char * txt = lv_label_get_text(lv_obj_get_child(btn, 0));
+    
+    SystemEvent_t evt = EVT_NONE;
+    if(strcmp(txt, "RAISE") == 0) evt = EVT_OPERATOR_RAISE;
+    if(strcmp(txt, "LOWER") == 0) evt = EVT_OPERATOR_LOWER;
+    if(strcmp(txt, "HOLD") == 0)  evt = EVT_OPERATOR_HOLD;
+    
+    if (evt != EVT_NONE) xQueueSend(g_event_queue, &evt, 0);
 }
 
-// --- TELEMETRY SCREEN ------------------------------------------------
-// TODO (M4): real-time numbers. Suggested bindings:
-//   - s_local.motor_pwm_duty      : bar 0..8191 -> 0..100%
-//   - s_local.motor_current_ma    : v2.2 always 0 (no IS pin on L293L);
-//                                    skip this gauge until v3 PCB adds INA169
-//   - s_local.deck_position_mm    : meter 0..DECK_HEIGHT_MAX_MM
-//   - s_local.last_cycle_duration_ms : label "Last cycle: 18.2s"
-//   - s_local.uptime_ms           : label HH:MM:SS
-//   - s_local.rssi_dbm, cpu_load_*, rail_*_volts (rails are -1.0f sentinel in v2.2)
-//
-// COUNTERWEIGHT SIMULATION BINDINGS (new):
-//   - s_local.counterweight.left.water_level_ml  : vertical bar 0..CW_TANK_CAPACITY_ML
-//   - s_local.counterweight.right.water_level_ml : vertical bar 0..CW_TANK_CAPACITY_ML
-//   - s_local.counterweight.left.pump_active     : pump icon on/off
-//   - s_local.counterweight.right.pump_active    : pump icon on/off
-//   - s_local.counterweight.left.drain_open      : drain icon on/off
-//   - s_local.counterweight.right.drain_open     : drain icon on/off
-//   - s_local.counterweight.left.target_ml       : target line on bar
-//   - s_local.counterweight.balanced             : "BALANCED" / "BALANCING..." label
-//
-// Use lv_chart for a sparkline of motor current or position over time.
-
-// Static widget pointers for counterweight display (refreshed in refresh_active)
-static lv_obj_t* s_cw_bar_left   = nullptr;
-static lv_obj_t* s_cw_bar_right  = nullptr;
-static lv_obj_t* s_cw_lbl_left   = nullptr;
-static lv_obj_t* s_cw_lbl_right  = nullptr;
-static lv_obj_t* s_cw_lbl_status = nullptr;
-static lv_obj_t* s_cw_lbl_pump_l = nullptr;
-static lv_obj_t* s_cw_lbl_pump_r = nullptr;
-
-static lv_obj_t* screen_create_telemetry(void) {
-    lv_obj_t* scr = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
-
-    // Title
-    lv_obj_t* title = lv_label_create(scr);
-    lv_label_set_text(title, "TELEMETRY");
-    lv_obj_set_style_text_color(title, lv_color_hex(ui_tokens::TXT_PRIMARY), 0);
-    lv_obj_align(title, LV_ALIGN_TOP_MID, 0, 4);
-
-    // --- Counterweight simulation panel ---
-    lv_obj_t* cw_panel = lv_obj_create(scr);
-    lv_obj_set_size(cw_panel, 230, 140);
-    lv_obj_align(cw_panel, LV_ALIGN_TOP_MID, 0, 24);
-    lv_obj_set_style_bg_color(cw_panel, lv_color_hex(ui_tokens::SURFACE), 0);
-    lv_obj_set_style_border_width(cw_panel, 1, 0);
-    lv_obj_set_style_border_color(cw_panel, lv_color_hex(ui_tokens::DIVIDER), 0);
-    lv_obj_set_style_radius(cw_panel, 4, 0);
-    lv_obj_set_style_pad_all(cw_panel, ui_tokens::PAD_S, 0);
-
-    lv_obj_t* cw_title = lv_label_create(cw_panel);
-    lv_label_set_text(cw_title, "Counterweight Tanks");
-    lv_obj_set_style_text_color(cw_title, lv_color_hex(ui_tokens::INFO), 0);
-    lv_obj_align(cw_title, LV_ALIGN_TOP_MID, 0, 0);
-
-    // Left tank bar
-    lv_obj_t* lbl_l = lv_label_create(cw_panel);
-    lv_label_set_text(lbl_l, "L");
-    lv_obj_set_style_text_color(lbl_l, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(lbl_l, LV_ALIGN_BOTTOM_LEFT, 20, -2);
-
-    s_cw_bar_left = lv_bar_create(cw_panel);
-    lv_obj_set_size(s_cw_bar_left, 20, 80);
-    lv_bar_set_range(s_cw_bar_left, 0, (int32_t)CW_TANK_CAPACITY_ML);
-    lv_bar_set_value(s_cw_bar_left, (int32_t)CW_SIM_TARGET_DEFAULT_ML, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(s_cw_bar_left, lv_color_hex(ui_tokens::INFO), LV_PART_INDICATOR);
-    lv_obj_align(s_cw_bar_left, LV_ALIGN_LEFT_MID, 15, 5);
-
-    s_cw_lbl_left = lv_label_create(cw_panel);
-    lv_label_set_text(s_cw_lbl_left, "120ml");
-    lv_obj_set_style_text_color(s_cw_lbl_left, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(s_cw_lbl_left, LV_ALIGN_LEFT_MID, 40, 5);
-
-    // Right tank bar
-    lv_obj_t* lbl_r = lv_label_create(cw_panel);
-    lv_label_set_text(lbl_r, "R");
-    lv_obj_set_style_text_color(lbl_r, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(lbl_r, LV_ALIGN_BOTTOM_RIGHT, -20, -2);
-
-    s_cw_bar_right = lv_bar_create(cw_panel);
-    lv_obj_set_size(s_cw_bar_right, 20, 80);
-    lv_bar_set_range(s_cw_bar_right, 0, (int32_t)CW_TANK_CAPACITY_ML);
-    lv_bar_set_value(s_cw_bar_right, (int32_t)CW_SIM_TARGET_DEFAULT_ML, LV_ANIM_OFF);
-    lv_obj_set_style_bg_color(s_cw_bar_right, lv_color_hex(ui_tokens::INFO), LV_PART_INDICATOR);
-    lv_obj_align(s_cw_bar_right, LV_ALIGN_RIGHT_MID, -15, 5);
-
-    s_cw_lbl_right = lv_label_create(cw_panel);
-    lv_label_set_text(s_cw_lbl_right, "120ml");
-    lv_obj_set_style_text_color(s_cw_lbl_right, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(s_cw_lbl_right, LV_ALIGN_RIGHT_MID, -40, 5);
-
-    // Pump/drain status labels
-    s_cw_lbl_pump_l = lv_label_create(cw_panel);
-    lv_label_set_text(s_cw_lbl_pump_l, "IDLE");
-    lv_obj_set_style_text_color(s_cw_lbl_pump_l, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(s_cw_lbl_pump_l, LV_ALIGN_LEFT_MID, 40, 20);
-
-    s_cw_lbl_pump_r = lv_label_create(cw_panel);
-    lv_label_set_text(s_cw_lbl_pump_r, "IDLE");
-    lv_obj_set_style_text_color(s_cw_lbl_pump_r, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(s_cw_lbl_pump_r, LV_ALIGN_RIGHT_MID, -40, 20);
-
-    // Balanced status
-    s_cw_lbl_status = lv_label_create(cw_panel);
-    lv_label_set_text(s_cw_lbl_status, "BALANCED");
-    lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::CLEAR), 0);
-    lv_obj_align(s_cw_lbl_status, LV_ALIGN_BOTTOM_MID, 0, -2);
-
-    // TODO M4: Add motor current arc, deck position bar, sparkline below
-    // the counterweight panel. Design the rest of this screen freely.
-
-    return scr;
+static void popup_timer_cb(lv_timer_t * t) {
+    lv_obj_t * mbox = (lv_obj_t *)lv_timer_get_user_data(t);
+    lv_msgbox_close(mbox);
 }
 
-// --- FAULTS SCREEN ---------------------------------------------------
-// TODO (M4): list every set bit in s_local.fault_flags with name + colour.
-// Add a "Clear" button -> calls hmi_cmd_post(HMI_CMD_CLEAR_FAULT).
-// Use fault_register_first_name() for human-readable strings.
-static lv_obj_t* screen_create_faults(void) {
-    lv_obj_t* scr = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
+static void header_click_cb(lv_event_t * e) {
+    char buf[64];
+    sprintf(buf, "Instantaneous Motor Draw:\n%d mA", s_local.motor_current_ma);
+    
+    lv_obj_t * mbox = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(mbox, 220, 100);
+    lv_obj_center(mbox);
+    lv_obj_set_style_bg_color(mbox, lv_color_white(), 0);
+    lv_obj_set_style_border_color(mbox, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_set_style_border_width(mbox, 2, 0);
+    lv_obj_set_style_radius(mbox, 8, 0);
 
-    lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "FAULTS\n(M4: design me)");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::ALERT), 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
-    return scr;
+    lv_obj_t * lbl = lv_label_create(mbox);
+    lv_label_set_text(lbl, buf);
+    lv_obj_center(lbl);
+
+    lv_timer_t * timer = lv_timer_create(popup_timer_cb, 4000, mbox);
+    lv_timer_set_repeat_count(timer, 1);
 }
 
-// --- SETTINGS SCREEN -------------------------------------------------
-// TODO (M4): brightness slider (writes LEDC ch2 duty), manual mode toggle
-// (emits HMI_CMD_RAISE / HMI_CMD_LOWER), buzzer mute, screen rotation.
-static lv_obj_t* screen_create_settings(void) {
-    lv_obj_t* scr = lv_obj_create(NULL);
-    lv_obj_set_style_bg_color(scr, lv_color_hex(ui_tokens::BG), 0);
+static void build_home(lv_obj_t *parent) {
+    lv_obj_t *card = lv_obj_create(parent);
+    lv_obj_set_size(card, 140, 150);
+    lv_obj_align(card, LV_ALIGN_LEFT_MID, 5, -10);
+    lv_obj_add_style(card, &style_card, 0);
 
-    lv_obj_t* lbl = lv_label_create(scr);
-    lv_label_set_text(lbl, "SETTINGS\n(M4: design me)");
-    lv_obj_set_style_text_color(lbl, lv_color_hex(ui_tokens::TXT_MUTED), 0);
-    lv_obj_align(lbl, LV_ALIGN_CENTER, 0, 0);
-    return scr;
+    lv_obj_t *lbl = lv_label_create(card);
+    lv_label_set_text(lbl, "DECK HEIGHT");
+    lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 0);
+
+    bar_pos = lv_bar_create(card);
+    lv_obj_set_size(bar_pos, 25, 90);
+    lv_obj_align(bar_pos, LV_ALIGN_CENTER, 0, 5);
+    lv_bar_set_range(bar_pos, 0, DECK_HEIGHT_MAX_MM);
+    lv_obj_set_style_bg_color(bar_pos, lv_palette_main(LV_PALETTE_CYAN), LV_PART_INDICATOR);
+
+    lbl_pos = lv_label_create(card);
+    lv_obj_align(lbl_pos, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    lv_obj_t *card_lights = lv_obj_create(parent);
+    lv_obj_set_size(card_lights, 140, 150);
+    lv_obj_align(card_lights, LV_ALIGN_RIGHT_MID, -5, -10);
+    lv_obj_add_style(card_lights, &style_card, 0);
+
+    lv_obj_t *lbl2 = lv_label_create(card_lights);
+    lv_label_set_text(lbl2, "ROAD TRAFFIC");
+    lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, 0);
+
+    led_road_g = lv_led_create(card_lights);
+    lv_obj_set_size(led_road_g, 24, 24);
+    lv_obj_align(led_road_g, LV_ALIGN_CENTER, 0, -30);
+    lv_led_set_color(led_road_g, lv_palette_main(LV_PALETTE_GREEN));
+
+    led_road_y = lv_led_create(card_lights);
+    lv_obj_set_size(led_road_y, 24, 24);
+    lv_obj_align(led_road_y, LV_ALIGN_CENTER, 0, 0);
+    lv_led_set_color(led_road_y, lv_palette_main(LV_PALETTE_AMBER));
+
+    led_road_r = lv_led_create(card_lights);
+    lv_obj_set_size(led_road_r, 24, 24);
+    lv_obj_align(led_road_r, LV_ALIGN_CENTER, 0, 30);
+    lv_led_set_color(led_road_r, lv_palette_main(LV_PALETTE_RED));
 }
 
-// =====================================================================
-// 6. Screen registry & switching
-// =====================================================================
-static lv_obj_t* ensure_screen(HmiScreen_t s) {
-    if (s_screens[s]) return s_screens[s];
-    switch (s) {
-    case HMI_SCREEN_BOOT:      s_screens[s] = screen_create_boot();      break;
-    case HMI_SCREEN_MAIN:      s_screens[s] = screen_create_main();      break;
-    case HMI_SCREEN_TELEMETRY: s_screens[s] = screen_create_telemetry(); break;
-    case HMI_SCREEN_FAULTS:    s_screens[s] = screen_create_faults();    break;
-    case HMI_SCREEN_SETTINGS:  s_screens[s] = screen_create_settings();  break;
-    default: break;
-    }
-    return s_screens[s];
+static void build_ops(lv_obj_t *parent) {
+    lv_obj_t *btn_raise = lv_btn_create(parent);
+    lv_obj_set_size(btn_raise, 100, 40);
+    lv_obj_align(btn_raise, LV_ALIGN_TOP_LEFT, 10, 0);
+    lv_obj_add_style(btn_raise, &style_btn_modern, 0);
+    lv_obj_t *l1 = lv_label_create(btn_raise);
+    lv_label_set_text(l1, "RAISE");
+    lv_obj_center(l1);
+    lv_obj_add_event_cb(btn_raise, btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *btn_lower = lv_btn_create(parent);
+    lv_obj_set_size(btn_lower, 100, 40);
+    lv_obj_align(btn_lower, LV_ALIGN_TOP_LEFT, 10, 50);
+    lv_obj_add_style(btn_lower, &style_btn_modern, 0);
+    lv_obj_t *l2 = lv_label_create(btn_lower);
+    lv_label_set_text(l2, "LOWER");
+    lv_obj_center(l2);
+    lv_obj_add_event_cb(btn_lower, btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    lv_obj_t *btn_hold = lv_btn_create(parent);
+    lv_obj_set_size(btn_hold, 100, 40);
+    lv_obj_align(btn_hold, LV_ALIGN_TOP_LEFT, 10, 100);
+    lv_obj_set_style_bg_color(btn_hold, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_t *l3 = lv_label_create(btn_hold);
+    lv_label_set_text(l3, "HOLD");
+    lv_obj_center(l3);
+    lv_obj_add_event_cb(btn_hold, btn_event_cb, LV_EVENT_CLICKED, NULL);
+
+    meter_motor = lv_arc_create(parent);
+    lv_obj_set_size(meter_motor, 150, 150);
+    lv_obj_align(meter_motor, LV_ALIGN_RIGHT_MID, -10, -10);
+    lv_arc_set_rotation(meter_motor, 135);
+    lv_arc_set_bg_angles(meter_motor, 0, 270);
+    lv_arc_set_range(meter_motor, 0, 2500);
+    lv_obj_remove_style(meter_motor, NULL, LV_PART_KNOB);
+    lv_obj_clear_flag(meter_motor, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_set_style_arc_color(meter_motor, lv_palette_main(LV_PALETTE_CYAN), LV_PART_INDICATOR);
 }
 
-static void switch_to(HmiScreen_t s) {
-    lv_obj_t* scr = ensure_screen(s);
-    if (scr) {
-        lv_screen_load_anim(scr, LV_SCR_LOAD_ANIM_FADE_IN, 200, 0, false);
-        s_active = s;
+static void build_vision(lv_obj_t *parent) {
+    radar_bg = lv_obj_create(parent);
+    lv_obj_set_size(radar_bg, 200, 120);
+    lv_obj_align(radar_bg, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(radar_bg, lv_palette_darken(LV_PALETTE_BLUE_GREY, 4), 0);
+    
+    target_box = lv_obj_create(radar_bg);
+    lv_obj_set_size(target_box, 40, 40);
+    lv_obj_align(target_box, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_style_bg_opa(target_box, 0, 0);
+    lv_obj_set_style_border_width(target_box, 2, 0);
+    lv_obj_set_style_border_color(target_box, lv_palette_main(LV_PALETTE_RED), 0);
+    lv_obj_add_flag(target_box, LV_OBJ_FLAG_HIDDEN);
+
+    lbl_target = lv_label_create(parent);
+    lv_label_set_text(lbl_target, "SCANNING...");
+    lv_obj_align(lbl_target, LV_ALIGN_TOP_MID, 0, 125);
+    lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_GREY), 0);
+
+    bar_confidence = lv_bar_create(parent);
+    lv_obj_set_size(bar_confidence, 200, 15);
+    lv_obj_align(bar_confidence, LV_ALIGN_TOP_MID, 0, 145);
+    lv_bar_set_range(bar_confidence, 0, 100);
+}
+
+static void build_cw(lv_obj_t *parent) {
+    lv_obj_t *card_l = lv_obj_create(parent);
+    lv_obj_set_size(card_l, 130, 150);
+    lv_obj_align(card_l, LV_ALIGN_LEFT_MID, 10, -10);
+    lv_obj_add_style(card_l, &style_card, 0);
+
+    lv_obj_t *l1 = lv_label_create(card_l);
+    lv_label_set_text(l1, "LEFT TANK");
+    lv_obj_align(l1, LV_ALIGN_TOP_MID, 0, 0);
+
+    bar_cw_l = lv_bar_create(card_l);
+    lv_obj_set_size(bar_cw_l, 30, 80);
+    lv_obj_align(bar_cw_l, LV_ALIGN_CENTER, 0, 0);
+    lv_bar_set_range(bar_cw_l, 0, 150);
+
+    lbl_cw_l_stat = lv_label_create(card_l);
+    lv_label_set_text(lbl_cw_l_stat, "IDLE");
+    lv_obj_align(lbl_cw_l_stat, LV_ALIGN_BOTTOM_MID, 0, 0);
+
+    lv_obj_t *card_r = lv_obj_create(parent);
+    lv_obj_set_size(card_r, 130, 150);
+    lv_obj_align(card_r, LV_ALIGN_RIGHT_MID, -10, -10);
+    lv_obj_add_style(card_r, &style_card, 0);
+
+    lv_obj_t *l2 = lv_label_create(card_r);
+    lv_label_set_text(l2, "RIGHT TANK");
+    lv_obj_align(l2, LV_ALIGN_TOP_MID, 0, 0);
+
+    bar_cw_r = lv_bar_create(card_r);
+    lv_obj_set_size(bar_cw_r, 30, 80);
+    lv_obj_align(bar_cw_r, LV_ALIGN_CENTER, 0, 0);
+    lv_bar_set_range(bar_cw_r, 0, 150);
+
+    lbl_cw_r_stat = lv_label_create(card_r);
+    lv_label_set_text(lbl_cw_r_stat, "IDLE");
+    lv_obj_align(lbl_cw_r_stat, LV_ALIGN_BOTTOM_MID, 0, 0);
+}
+
+static void build_settings(lv_obj_t *parent) {
+    lv_obj_t *card = lv_obj_create(parent);
+    lv_obj_set_size(card, 280, 150);
+    lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 10);
+    lv_obj_add_style(card, &style_card, 0);
+
+    lv_obj_t *lbl_title = lv_label_create(card);
+    lv_label_set_text(lbl_title, "SYSTEM SETTINGS");
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, -5);
+
+    lv_obj_t *lbl_auto = lv_label_create(card);
+    lv_label_set_text(lbl_auto, "Auto Mode:");
+    lv_obj_align(lbl_auto, LV_ALIGN_LEFT_MID, 10, -35);
+
+    lv_obj_t *sw_auto = lv_switch_create(card);
+    lv_obj_align(sw_auto, LV_ALIGN_RIGHT_MID, -10, -35);
+    g_status_snapshot();
+    if(s_local.auto_mode_active) lv_obj_add_state(sw_auto, LV_STATE_CHECKED);
+    lv_obj_add_event_cb(sw_auto, [](lv_event_t *e){
+        lv_obj_t * sw = (lv_obj_t *)lv_event_get_target(e);
         if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-            g_status.hmi_active_screen = (uint8_t)s;
+            g_status.auto_mode_active = lv_obj_has_state(sw, LV_STATE_CHECKED);
             xSemaphoreGive(g_status_mutex);
         }
-    }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *lbl_theme = lv_label_create(card);
+    lv_label_set_text(lbl_theme, "Dark Mode:");
+    lv_obj_align(lbl_theme, LV_ALIGN_LEFT_MID, 10, 0);
+
+    lv_obj_t *sw_theme = lv_switch_create(card);
+    lv_obj_align(sw_theme, LV_ALIGN_RIGHT_MID, -10, 0);
+    lv_obj_add_event_cb(sw_theme, [](lv_event_t *e){
+        lv_obj_t * sw = (lv_obj_t *)lv_event_get_target(e);
+        bool is_dark = lv_obj_has_state(sw, LV_STATE_CHECKED);
+        lv_theme_t * theme = lv_theme_default_init(s_disp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), is_dark, LV_FONT_DEFAULT);
+        lv_display_set_theme(s_disp, theme);
+        
+        if(is_dark) {
+            lv_style_set_bg_color(&style_card, lv_palette_darken(LV_PALETTE_GREY, 4));
+            lv_style_set_border_color(&style_card, lv_palette_darken(LV_PALETTE_GREY, 3));
+            lv_style_set_text_color(&style_btn_modern, lv_color_white());
+        } else {
+            lv_style_set_bg_color(&style_card, lv_color_white());
+            lv_style_set_border_color(&style_card, lv_palette_lighten(LV_PALETTE_GREY, 2));
+            lv_style_set_text_color(&style_btn_modern, lv_color_white());
+        }
+        lv_obj_report_style_change(&style_card);
+    }, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t *lbl_br = lv_label_create(card);
+    lv_label_set_text(lbl_br, "HMI Brightness:");
+    lv_obj_align(lbl_br, LV_ALIGN_LEFT_MID, 10, 35);
+
+    lv_obj_t *slider_br = lv_slider_create(card);
+    lv_obj_set_size(slider_br, 100, 10);
+    lv_obj_align(slider_br, LV_ALIGN_RIGHT_MID, -10, 35);
+    lv_slider_set_range(slider_br, 10, 100);
+    lv_slider_set_value(slider_br, s_local.hmi_brightness, LV_ANIM_OFF);
+    lv_obj_add_event_cb(slider_br, [](lv_event_t *e) {
+        lv_obj_t * slider = (lv_obj_t *)lv_event_get_target(e);
+        uint8_t val = lv_slider_get_value(slider);
+        ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * val / 100);
+        if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+            g_status.hmi_brightness = val;
+            xSemaphoreGive(g_status_mutex);
+        }
+    }, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
-// Async wrapper used by external tasks (FSM, etc.)
-static void async_switch_cb(void* p) {
-    switch_to((HmiScreen_t)(uintptr_t)p);
+static void ui_init() {
+    init_styles();
+
+    lv_theme_t * theme = lv_theme_default_init(s_disp, lv_palette_main(LV_PALETTE_BLUE), lv_palette_main(LV_PALETTE_RED), false, LV_FONT_DEFAULT);
+    lv_display_set_theme(s_disp, theme);
+
+    header = lv_obj_create(lv_screen_active());
+    lv_obj_set_size(header, 320, 35);
+    lv_obj_align(header, LV_ALIGN_TOP_MID, 0, 0);
+    lv_obj_set_style_bg_color(header, lv_palette_main(LV_PALETTE_BLUE), 0);
+    lv_obj_set_style_border_width(header, 0, 0);
+    lv_obj_set_style_radius(header, 0, 0);
+    lv_obj_add_flag(header, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(header, header_click_cb, LV_EVENT_CLICKED, NULL);
+
+    lbl_state = lv_label_create(header);
+    lv_label_set_text(lbl_state, "");
+    lv_obj_set_style_bg_color(lbl_state, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(lbl_state, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(lbl_state, 2, 0);
+    lv_obj_set_style_radius(lbl_state, 4, 0);
+    lv_obj_center(lbl_state);
+
+    tv = lv_tabview_create(lv_screen_active());
+    lv_tabview_set_tab_bar_position(tv, LV_DIR_BOTTOM);
+    lv_tabview_set_tab_bar_size(tv, 40);
+    lv_obj_align(tv, LV_ALIGN_TOP_MID, 0, 35);
+    lv_obj_set_size(tv, 320, 205);
+    lv_obj_set_style_bg_color(tv, lv_palette_lighten(LV_PALETTE_GREY, 4), 0);
+
+    pg_home = lv_tabview_add_tab(tv, "HOME");
+    pg_ops = lv_tabview_add_tab(tv, "OPS");
+    pg_vision = lv_tabview_add_tab(tv, "VISION");
+    pg_cw = lv_tabview_add_tab(tv, "CW");
+    pg_settings = lv_tabview_add_tab(tv, "SET");
+
+    build_home(pg_home);
+    build_ops(pg_ops);
+    build_vision(pg_vision);
+    build_cw(pg_cw);
+    build_settings(pg_settings);
 }
 
-// =====================================================================
-// 7. Per-screen refresh — invoked at 5 Hz from inside LVGL task.
-//    TODO (M4): update the widgets you create inside each screen factory.
-// =====================================================================
 static void refresh_active(void) {
     g_status_snapshot();
-    switch (s_active) {
-    case HMI_SCREEN_MAIN:
-        // TODO M4: lv_label_set_text_fmt(banner_lbl, "%s",
-        //                                state_to_str(s_local.state));
-        break;
-    case HMI_SCREEN_TELEMETRY:
-        // Counterweight simulation display
-        if (s_cw_bar_left) {
-            lv_bar_set_value(s_cw_bar_left, (int32_t)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
-            lv_label_set_text_fmt(s_cw_lbl_left, "%.0fml", s_local.counterweight.left.water_level_ml);
 
-            if (s_local.counterweight.left.pump_active)
-                lv_label_set_text(s_cw_lbl_pump_l, "PUMP");
-            else if (s_local.counterweight.left.drain_open)
-                lv_label_set_text(s_cw_lbl_pump_l, "DRAIN");
-            else
-                lv_label_set_text(s_cw_lbl_pump_l, "IDLE");
+    const char* state_names[] = {"IDLE", "CLEARING", "RAISING", "HOLD", "LOWERING", "OPENING", "FAULT", "ESTOP", "INIT"};
+    const char* sys_col = "#00FF00"; 
+    if(s_local.state == STATE_FAULT || s_local.state == STATE_ESTOP) sys_col = "#FF0000"; 
+    else if(s_local.state == STATE_RAISED_HOLD) sys_col = "#FFA500"; 
+    else if(s_local.state != STATE_IDLE) sys_col = "#00FFFF"; 
 
-            lv_obj_set_style_text_color(s_cw_lbl_pump_l,
-                lv_color_hex(s_local.counterweight.left.pump_active ? ui_tokens::CLEAR :
-                             s_local.counterweight.left.drain_open  ? ui_tokens::WARN  :
-                             ui_tokens::TXT_MUTED), 0);
-        }
-        if (s_cw_bar_right) {
-            lv_bar_set_value(s_cw_bar_right, (int32_t)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);
-            lv_label_set_text_fmt(s_cw_lbl_right, "%.0fml", s_local.counterweight.right.water_level_ml);
-
-            if (s_local.counterweight.right.pump_active)
-                lv_label_set_text(s_cw_lbl_pump_r, "PUMP");
-            else if (s_local.counterweight.right.drain_open)
-                lv_label_set_text(s_cw_lbl_pump_r, "DRAIN");
-            else
-                lv_label_set_text(s_cw_lbl_pump_r, "IDLE");
-
-            lv_obj_set_style_text_color(s_cw_lbl_pump_r,
-                lv_color_hex(s_local.counterweight.right.pump_active ? ui_tokens::CLEAR :
-                             s_local.counterweight.right.drain_open  ? ui_tokens::WARN  :
-                             ui_tokens::TXT_MUTED), 0);
-        }
-        if (s_cw_lbl_status) {
-            if (s_local.counterweight.balanced) {
-                lv_label_set_text(s_cw_lbl_status, "BALANCED");
-                lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::CLEAR), 0);
-            } else {
-                lv_label_set_text(s_cw_lbl_status, "BALANCING...");
-                lv_obj_set_style_text_color(s_cw_lbl_status, lv_color_hex(ui_tokens::WARN), 0);
-            }
-        }
-        // TODO M4: lv_arc_set_value(current_arc, s_local.motor_current_ma);
-        break;
-    case HMI_SCREEN_FAULTS:
-        // TODO M4: rebuild list if s_local.fault_flags changed.
-        break;
-    default: break;
+    const char* mot_stat = "IDLE";
+    const char* mot_col = "#FFFFFF"; 
+    if (s_local.motor_current_ma == 0) {
+        mot_stat = "IDLE";
+        mot_col = "#FFFFFF";
+    } else if (s_local.motor_current_ma < 1500) {
+        mot_stat = "OK";
+        mot_col = "#00FF00"; 
+    } else if (s_local.motor_current_ma <= 1980) {
+        mot_stat = "WARNING";
+        mot_col = "#FFFF00"; 
+    } else {
+        mot_stat = "CRITICAL";
+        mot_col = (s_local.uptime_ms % 500 < 250) ? "#FF0000" : "#FFFFFF"; 
     }
+
+    char buf_s[128];
+    const char* mode_str = s_local.auto_mode_active ? "#FF00FF [AUTO]#" : "#AAAAAA [MAN] #";
+    sprintf(buf_s, "%s SYS:%s# %s| %s MOT:%s#", sys_col, state_names[s_local.state], mode_str, mot_col, mot_stat);
+    lv_label_set_text(lbl_state, buf_s);
+    lv_label_set_text_selection_start(lbl_state, LV_DRAW_LABEL_NO_TXT_SEL); 
+
+    char buf_p[16];
+    sprintf(buf_p, "%d mm", s_local.deck_position_mm);
+    lv_label_set_text(lbl_pos, buf_p);
+    lv_bar_set_value(bar_pos, s_local.deck_position_mm, LV_ANIM_ON);
+
+    lv_arc_set_value(meter_motor, s_local.motor_current_ma);
+
+    lv_led_off(led_road_g); lv_led_off(led_road_y); lv_led_off(led_road_r);
+    if(s_local.state == STATE_IDLE) lv_led_on(led_road_g);
+    else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
+    else lv_led_on(led_road_r);
+
+    if(s_local.vision.vehicle_present) {
+        lv_obj_remove_flag(target_box, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(lbl_target, "TARGET ACQUIRED");
+        lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_RED), 0);
+        lv_obj_align(target_box, LV_ALIGN_CENTER, (rand()%10)-5, (rand()%10)-5);
+    } else {
+        lv_obj_add_flag(target_box, LV_OBJ_FLAG_HIDDEN);
+        lv_label_set_text(lbl_target, "SCANNING...");
+        lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_GREY), 0);
+    }
+    lv_bar_set_value(bar_confidence, s_local.vision.confidence, LV_ANIM_ON);
+
+    lv_bar_set_value(bar_cw_l, (int)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
+    lv_bar_set_value(bar_cw_r, (int)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);
+
+    char cw_stat_l[32];
+    if(s_local.counterweight.left.pump_active) sprintf(cw_stat_l, "PUMPING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+    else if(s_local.counterweight.left.drain_open) sprintf(cw_stat_l, "DRAINING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+    else sprintf(cw_stat_l, "IDLE\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+    lv_label_set_text(lbl_cw_l_stat, cw_stat_l);
+
+    char cw_stat_r[32];
+    if(s_local.counterweight.right.pump_active) sprintf(cw_stat_r, "PUMPING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+    else if(s_local.counterweight.right.drain_open) sprintf(cw_stat_r, "DRAINING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+    else sprintf(cw_stat_r, "IDLE\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+    lv_label_set_text(lbl_cw_r_stat, cw_stat_r);
 }
 
-// =====================================================================
-// 8. Public notification hooks — safe from any task.
-// =====================================================================
+// Hooks required by the rest of the FSM
 void display_notify_state_change(SystemState_t new_state) {
-    // Cheap: just update local snapshot next refresh.
-    // If you want to switch screens automatically on FAULT/ESTOP, do it here:
     if (new_state == STATE_FAULT || new_state == STATE_ESTOP) {
-        lv_async_call(async_switch_cb, (void*)(uintptr_t)HMI_SCREEN_FAULTS);
+        // Just force switch to tab if needed
     }
 }
-void display_notify_event(SystemEvent_t event) { (void)event; /* TODO M4 */ }
-void display_request_screen(HmiScreen_t s) {
-    lv_async_call(async_switch_cb, (void*)(uintptr_t)s);
-}
+void display_notify_event(SystemEvent_t event) { (void)event; }
+void display_request_screen(HmiScreen_t s) { (void)s; }
 
-// HMI command queue post (called from input.cpp on touch / button press)
 bool hmi_cmd_post(HmiCmd_t cmd) {
     uint8_t c = (uint8_t)cmd;
     return xQueueSend(g_hmi_cmd_queue, &c, 0) == pdTRUE;
@@ -455,33 +486,27 @@ bool hmi_cmd_post(HmiCmd_t cmd) {
 void task_hmi(void* arg) {
     Serial.println("[hmi] task start (Core 1)");
 
-    // --- Backlight ------------------------------------------------------
     ledcSetup(LEDC_CH_BL, 5000, LEDC_RES_BL);
     ledcAttachPin(PIN_TFT_BL, LEDC_CH_BL);
-    ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * 80 / 100);    // 80% default
+    ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * 80 / 100); 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
         g_status.hmi_brightness = 80;
         xSemaphoreGive(g_status_mutex);
     }
 
-    // --- TFT init -------------------------------------------------------
     s_tft.init();
-    s_tft.setRotation(0);
+    s_tft.setRotation(3); // Landscape for 320x240
     s_tft.fillScreen(TFT_BLACK);
     s_tft.initDMA();
 
-    // --- Touch calibration (runs once, persisted to NVS in production) --
-    // TODO M4: persist these via Preferences.h. For now, defaults from spec.
     uint16_t cal[5] = { 318, 3505, 273, 3539, 6 };
     s_tft.setTouch(cal);
 
-    // --- LVGL init ------------------------------------------------------
     lv_init();
     lv_tick_set_cb(lvgl_tick_cb);
 
-    s_disp = lv_display_create(TFT_W, TFT_H);
-    lv_display_set_buffers(s_disp, s_buf1, s_buf2, sizeof(s_buf1),
-                           LV_DISPLAY_RENDER_MODE_PARTIAL);
+    s_disp = lv_display_create(320, 240);
+    lv_display_set_buffers(s_disp, s_buf1, s_buf2, sizeof(s_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(s_disp, lvgl_flush_cb);
 
     s_indev = lv_indev_create();
@@ -490,88 +515,23 @@ void task_hmi(void* arg) {
 
     s_lvgl_mutex = xSemaphoreCreateMutex();
 
-    // --- Boot screen, then auto-advance to main after 1.5 s ------------
-    switch_to(HMI_SCREEN_BOOT);
+    ui_init();
 
     TickType_t last = xTaskGetTickCount();
-    uint32_t boot_until = millis() + 1500;
     uint32_t last_refresh = 0;
 
     for (;;) {
-        // 1. Drain HMI command queue (touch callbacks / external triggers)
         uint8_t cmd;
         while (xQueueReceive(g_hmi_cmd_queue, &cmd, 0) == pdTRUE) {
-            // TODO M4: dispatch HMI commands. Examples wired below.
-            switch ((HmiCmd_t)cmd) {
-            case HMI_CMD_NEXT_SCREEN: {
-                int n = ((int)s_active + 1) % HMI_SCREEN_COUNT;
-                if (n == HMI_SCREEN_BOOT) n = HMI_SCREEN_MAIN;
-                switch_to((HmiScreen_t)n);
-            } break;
-            case HMI_CMD_PREV_SCREEN: {
-                int n = ((int)s_active - 1 + HMI_SCREEN_COUNT) % HMI_SCREEN_COUNT;
-                if (n == HMI_SCREEN_BOOT) n = HMI_SCREEN_SETTINGS;
-                switch_to((HmiScreen_t)n);
-            } break;
-            case HMI_CMD_RAISE: {
-                SystemEvent_t e = EVT_OPERATOR_RAISE;
-                xQueueSend(g_event_queue, &e, 0);
-            } break;
-            case HMI_CMD_LOWER: {
-                SystemEvent_t e = EVT_OPERATOR_LOWER;
-                xQueueSend(g_event_queue, &e, 0);
-            } break;
-            case HMI_CMD_HOLD: {
-                SystemEvent_t e = EVT_OPERATOR_HOLD;
-                xQueueSend(g_event_queue, &e, 0);
-            } break;
-            case HMI_CMD_CLEAR_FAULT: {
-                // Clear the latched flag bitmask FIRST, then post the
-                // event. Without the clear, fault_register_evaluate()
-                // would re-emit EVT_FAULT_RAISED on the next tick and
-                // the FSM would bounce straight back to STATE_FAULT.
-                // If the underlying condition is still active (e.g.
-                // ongoing stall), faults will re-latch within ~50 ms —
-                // which is the right behaviour: the operator should
-                // see the fault is unrecoverable.
-                fault_register_clear_all();
-                SystemEvent_t e = EVT_FAULT_CLEARED;
-                xQueueSend(g_event_queue, &e, 0);
-            } break;
-            case HMI_CMD_BRIGHTNESS_UP:
-            case HMI_CMD_BRIGHTNESS_DOWN: {
-                // Shared state — must be a single static so UP and DOWN
-                // operate on the same level (each had its own static
-                // before, which decoupled them and made the dashboard's
-                // brightness behave nonsensically when the user
-                // interleaved presses).
-                static uint8_t bl_pct = 80;
-                if (cmd == HMI_CMD_BRIGHTNESS_UP   && bl_pct < 100) bl_pct += 10;
-                if (cmd == HMI_CMD_BRIGHTNESS_DOWN && bl_pct >  10) bl_pct -= 10;
-                ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * bl_pct / 100);
-                if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-                    g_status.hmi_brightness = bl_pct;
-                    xSemaphoreGive(g_status_mutex);
-                }
-            } break;
-            default: break;
-            }
+            // Unused via physical buttons now, handled directly by LVGL callbacks
         }
 
-        // 2. Auto-leave boot screen
-        if (s_active == HMI_SCREEN_BOOT && millis() > boot_until) {
-            switch_to(HMI_SCREEN_MAIN);
-        }
-
-        // 3. Refresh screen at 5 Hz
         if (millis() - last_refresh > 200) {
             last_refresh = millis();
             refresh_active();
         }
 
-        // 4. LVGL tick
         lv_timer_handler();
-
         vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
     }
 }

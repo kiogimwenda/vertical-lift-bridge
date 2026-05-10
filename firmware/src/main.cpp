@@ -191,7 +191,7 @@ static void task_fsm(void* arg) {
 
 // ===========================================================================
 // task_motor — closed-loop on deck position via potentiometer; stall watch.
-// (No current monitoring in v2.2 — L293L module has no IS pin; cf. L6 in
+// (No current monitoring in v2.2 — L293D module has no IS pin; cf. L6 in
 //  docs/known_limitations.md.)
 // ===========================================================================
 static void task_motor(void* arg) {

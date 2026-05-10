@@ -60,8 +60,8 @@ The system runs a complete bridge-opening cycle without human input. In plain En
 3. **Stop the road.** Traffic lights cycle green → amber → red. Servo barriers swing down. A buzzer chirps twice as a courtesy alert.
 4. **Balance counterweights.** A simulated dynamic counterweight system models two water tanks being filled/drained by pumps and valves to balance the deck mass. The firmware simulates water levels, pump status, and drain valve state — all visualised in real time on the TFT dashboard. The physical counterweights remain static (lead-filled boxes); the simulation runs in parallel for demonstration purposes. The FSM waits for the simulated counterweights to report "balanced" before proceeding.
 5. **Verify clearance.** The system confirms both barriers reached their down position, no vehicle remains in the bridge zone, and the simulated counterweights are balanced before raising.
-6. **Raise the bridge.** A JGA25-370 12 V gearmotor drives a Ø30 mm aluminium drum through an L293L H-bridge module, winding cables that lift the deck. Two 120 g static counterweights run on opposite cables over top pulleys to balance the deck mass. A 10 kΩ deck-position potentiometer reports deck height in millimetres.
-7. **Hold for marine traffic.** When the top limit switch trips, the motor brakes electronically (L293L dynamic short brake — both inputs HIGH). Marine traffic lights turn green. The bridge holds for 8 seconds (`HOLD_TIMEOUT_MS`, configurable in `system_types.h`).
+6. **Raise the bridge.** A JGA25-370 12 V gearmotor drives a Ø30 mm aluminium drum through an L293D H-bridge module, winding cables that lift the deck. Two 120 g static counterweights run on opposite cables over top pulleys to balance the deck mass. A 10 kΩ deck-position potentiometer reports deck height in millimetres.
+7. **Hold for marine traffic.** When the top limit switch trips, the motor brakes electronically (L293D dynamic short brake — both inputs HIGH). Marine traffic lights turn green. The bridge holds for 8 seconds (`HOLD_TIMEOUT_MS`, configurable in `system_types.h`).
 8. **Lower the bridge.** The motor drives down at lower duty (gravity-assisted) until the bottom limit switch trips. Counts/mm calibration auto-zeroes the encoder at the bottom.
 9. **Reopen the road.** Barriers raise, traffic lights cycle amber → green for road, red for marine. The system returns to idle.
 
@@ -92,7 +92,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 │         │                                                       │
 │  ┌──────▼─────────┐  ┌───────────────┐  ┌───────────────┐       │
 │  │  Motor Task    │  │ Safety Task   │  │   HMI Task    │       │
-│  │  L293L PWM     │  │ E-stop, fault │  │   LVGL/TFT    │       │
+│  │  L293D PWM     │  │ E-stop, fault │  │   LVGL/TFT    │       │
 │  │  Pot position  │  │ Watchdog kick │  │   Touch input │       │
 │  └────────────────┘  └───────────────┘  └───────────────┘       │
 │       Core 0              Core 0              Core 1            │
@@ -107,7 +107,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 
 **Key architectural choices** (rationale in [`docs/audit_report.md`](./docs/audit_report.md)):
 - **Two towers, not four.** A vertical-lift mechanism with cable + counterweight is mechanically simpler than the original four-tower lead-screw + GT2 belt design — one fewer alignment surface to mis-align.
-- **Cable + counterweight, not lead-screw.** Counterweights reduce the motor's nominal lift current from ~1500 mA to ~600 mA, allowing a smaller motor and a 2 A H-bridge (L293L module) instead of an over-spec'd power driver.
+- **Cable + counterweight, not lead-screw.** Counterweights reduce the motor's nominal lift current from ~1500 mA to ~600 mA, allowing a smaller motor and a 2 A H-bridge (L293D module) instead of an over-spec'd power driver.
 - **ESP32-CAM, not IR retro-reflective.** Vision over UART JSON is observable and debuggable; IR analog levels are not, especially under fluorescent lab lighting.
 - **Hardware limit switches, not software estimate alone.** Microswitches at top and bottom of each tower override any firmware estimate, fail-safe to STOP.
 - **Hardware E-stop relay, not just GPIO interrupt.** A SRD-05VDC relay sits in series with motor B+, switched by a ULN2803 channel from GPIO 32, so a wire cut, firmware crash, or stuck task cannot prevent stopping.
@@ -120,7 +120,7 @@ The control logic runs on **two ESP32 microcontrollers** that communicate over a
 | Subsystem | Components | Notes |
 |-----------|------------|-------|
 | Frame | 2× printed towers, MGN12 200 mm rails, MDF base 1200 × 600 × 12 mm | Towers PLA, 25–40% gyroid infill |
-| Drive | JGA25-370 12 V gearmotor (100 RPM, Hall-encoded), Ø30 mm aluminium drum, 1 mm braided steel cable, L293L H-bridge module (2 A) | ~600 mA nominal at full lift; module's EN tied HIGH so PWM rides on IN1/IN2 |
+| Drive | JGA25-370 12 V gearmotor (100 RPM, Hall-encoded), Ø30 mm aluminium drum, 1 mm braided steel cable, L293D H-bridge module (2 A) | ~600 mA nominal at full lift; module's EN tied HIGH so PWM rides on IN1/IN2 |
 | Counterweights | 2× printed boxes, 4× 60 g lead, 608ZZ pulley bearings, M8×80 axles | 120 g per side (static). Firmware simulates dynamic water-tank counterweights with pump/drain — displayed on TFT |
 | Sensors | 4× HC-SR04 ultrasonics (2 upstream + 2 downstream pairs, 3 cm beam spacing — but in v2.2 only US4 is functional, see L8), ESP32-CAM OV2640, 4× KW11-3Z limit switches | Ultrasonic ECHO line via 1 kΩ/2 kΩ divider — 5 V down to 3.3 V |
 | Actuators | 2× SG90 servos (barriers), 6× 0805 SMD LEDs (traffic), passive piezo buzzer | LEDs driven by 74HC595 chain; buzzer driven via ULN2803 channel from LEDC |
@@ -225,7 +225,7 @@ vertical-lift-bridge/
 │       ├── counterweight/       # ◄── M2 (simulation logic)
 │       │   └── counterweight.h/.cpp # Simulated pump/drain water tanks
 │       ├── motor/               # ◄── M2
-│       │   └── motor_driver.h/.cpp  # L293L PWM, deck-position pot, limit discrim
+│       │   └── motor_driver.h/.cpp  # L293D PWM, deck-position pot, limit discrim
 │       ├── sensors/             # ◄── M3
 │       │   └── ultrasonic.h/.cpp    # Quad HC-SR04 driver, direction inference (only US4 in v2.2)
 │       ├── vision/              # ◄── M3
@@ -864,7 +864,7 @@ For deeper firmware debugging, every module logs to Serial with a `[xxx]` prefix
 | HSPI | Hardware SPI bus on the ESP32 — TFT and touch share this |
 | UART | Serial port — the main board talks to the CAM over UART2 |
 | TWDT | Task Watchdog Timer — ESP32 hardware safety reset if a task hangs |
-| L293L | The 2 A H-bridge motor-driver module that drives the JGA25-370 (BOM line 2) |
+| L293D | The 2 A H-bridge motor-driver module that drives the JGA25-370 (BOM line 2) |
 | HC-SR04 | The ultrasonic distance sensor module |
 | OV2640 | The 2 MP camera sensor on the ESP32-CAM |
 | MGN12 | A 12 mm-wide miniature linear rail |

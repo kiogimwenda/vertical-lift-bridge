@@ -57,7 +57,7 @@ typedef enum : uint8_t {
 // ----------------------------------------------------------------------------
 typedef enum : uint32_t {
     FAULT_NONE              = 0,
-    FAULT_OVERCURRENT       = 1u << 0,   // DEPRECATED v2.2 — L293L module has no current-sense output. Bit reserved; never set in v2.2.
+    FAULT_OVERCURRENT       = 1u << 0,   // DEPRECATED v2.2 — L293D module has no current-sense output. Bit reserved; never set in v2.2.
     FAULT_STALL             = 1u << 1,   // Motor on but no position change
     FAULT_LIMIT_BOTH        = 1u << 2,   // Top AND bottom limit asserted (impossible with diode-OR; reserved for v3 PCB)
     FAULT_POS_OUT_OF_RANGE  = 1u << 3,   // Position pot read outside 0..DECK_HEIGHT_MAX_MM band
@@ -174,7 +174,7 @@ typedef struct {
     int16_t         deck_position_mm;       // 0 = down, +N = up (target N_max)
     int16_t         deck_target_mm;
     uint16_t        motor_pwm_duty;
-    int16_t         motor_current_ma;       // v2.2: always 0 — L293L module has no IS output
+    int16_t         motor_current_ma;       // v2.2: always 0 — L293D module has no IS output
     bool            top_limit_hit;
     bool            bottom_limit_hit;
 
@@ -214,6 +214,7 @@ typedef struct {
     // HMI
     uint8_t         hmi_active_screen;      // 0..4
     uint8_t         hmi_brightness;         // 0..100
+    bool            auto_mode_active;       // Toggle for automated lifting logic
 } SharedStatus_t;
 
 // ----------------------------------------------------------------------------
@@ -225,7 +226,7 @@ typedef struct {
 #define MOTOR_PWM_MAX               8191     // 13-bit LEDC
 #define MOTOR_PWM_RAISE_DEFAULT     5500     // ~67% duty
 #define MOTOR_PWM_LOWER_DEFAULT     4500     // Lighter duty descending (gravity assist)
-#define MOTOR_OVERCURRENT_MA        2200     // legacy threshold (BTS7960 era); v2.2 L293L module has no IS pin so this constant is unused. Kept for source-compatibility with member-guide examples.
+#define MOTOR_OVERCURRENT_MA        2200     // legacy threshold (BTS7960 era); v2.2 L293D module has no IS pin so this constant is unused. Kept for source-compatibility with member-guide examples.
 #define MOTOR_STALL_TIMEOUT_MS      2000     // No position change while energised
 #define BARRIER_DOWN_ANGLE          0
 #define BARRIER_UP_ANGLE            90
