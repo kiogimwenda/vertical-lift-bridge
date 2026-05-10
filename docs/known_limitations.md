@@ -200,32 +200,42 @@ diode-OR network on `PIN_LIMIT_ANYHIT` (or a dedicated GPIO once the
 ## L8 — Two HC-SR04 sensors degraded by 74HC595 + servo pin-sharing
 
 ### Symptom
-Of the four HC-SR04 modules:
-- **US1, US3** — ECHO reads work in v2.2 thanks to the time-multiplex
-  fix in `traffic_lights.cpp::shift_out()` (DATA/CLOCK toggle to
-  `INPUT_PULLUP` between shifts so US1_ECHO on GPIO 18 and US3_ECHO on
-  GPIO 23 are readable most of the time).
-- **US2** — ECHO permanently dead. GPIO 21 hosts the 74HC595 OE pin
-  which must stay a permanent `OUTPUT` (driven LOW = LED chain enabled).
-  Any shared `INPUT_PULLUP` toggling here would extinguish the LEDs.
-- **US3 TRIG** (GPIO 22) — partially compromised because GPIO 22 is
-  also the LEDC PWM output for `PIN_SERVO_RIGHT`. Once `interlocks_init`
-  attaches the servo via `s_servo_r.attach()`, the GPIO matrix routes
-  the LEDC signal to the pad and direct `digitalWrite` from
-  `sensors_ultrasonic_tick()` no longer reaches the SR04. Trigger
-  pulses still fire when the servo channel is at idle (0% duty) which
-  matches the design intent ("ultrasonics aren't time-critical during
-  barrier sweep") but is fragile.
+Of the four HC-SR04 modules in v2.2:
+- **US1 (upstream Beam A)** — ECHO pad on GPIO 18 is shared with the
+  74HC595 CLOCK; my time-multiplex fix in `traffic_lights.cpp::shift_out()`
+  releases this pad to `INPUT_PULLUP` between LED updates, so the
+  echo line is readable in principle. **However**, US1's TRIG pad
+  (GPIO 5) is also the LEDC PWM output for `PIN_SERVO_LEFT`. Once
+  `interlocks_init` calls `s_servo_l.attach()`, the GPIO matrix routes
+  the LEDC signal to the pad permanently and `sensors_ultrasonic_tick()`'s
+  `digitalWrite(PIN_US1_TRIG, HIGH/LOW)` calls do not reach the SR04.
+  No trigger out → no echo back → distance reads `0xFFFF`.
+- **US2 (upstream Beam B)** — ECHO permanently dead. GPIO 21 hosts the
+  74HC595 OE pin which must stay a permanent `OUTPUT` (driven LOW =
+  LED chain enabled). Any shared `INPUT_PULLUP` toggling here would
+  extinguish the LEDs.
+- **US3 (downstream Beam A)** — same TRIG issue as US1 (GPIO 22 owned
+  by `PIN_SERVO_RIGHT` after `s_servo_r.attach()`). ECHO pad on GPIO 23
+  is releasable but receives no echoes because no trigger is sent.
+- **US4 (downstream Beam B)** — fully functional whenever the USB
+  cable is unplugged (TRIG/ECHO on GPIO 1 / GPIO 3 share UART0 — see L4).
+
+**Net effect in v2.2: only US4 delivers ranging data**, and only when
+USB is unplugged. The HC-SR04 array is effectively a single-beam
+proximity sensor on the downstream side. Direction inference is
+unavailable.
 
 ### v2.2 mitigation
-- Vehicle detection still works through vision (independent UART2
-  channel) and through US1 + US4 (subject to L4 USB note).
-- Direction inference is degraded: the 4-sensor design assumes both
-  pairs read; in v2.2 only the upstream pair's US1 and the downstream
-  pair's US4 deliver useful echoes. The FSM still fires
-  `EVT_VEHICLE_DETECTED` from the OR of any blocked beam, so vessel
-  presence detection works; only the direction-of-travel inference is
-  degraded.
+- Vehicle detection still works through **vision** (the ESP32-CAM on
+  the dedicated UART2 channel — completely independent of the L8
+  failure path).
+- Vessel detection still works through **US4** when USB is unplugged.
+  Even though direction inference is unavailable, mere presence is
+  enough to trigger the FSM's `EVT_VEHICLE_DETECTED` (the FSM ORs
+  vision and ultrasonic).
+- For the demo: rely on vision as the primary path. Use US4 as a
+  binary "vessel-in-zone" backup. Document direction inference as a
+  v3 feature.
 
 ### v3 fix path
 Move the 74HC595 control lines off the ultrasonic pins entirely. The
@@ -238,10 +248,10 @@ sub-bus driven from GPIO pins freed by the mux.
 ## Summary for the lecturer demo
 
 The bridge meets all functional requirements with the v2.2 firmware:
-9-state FSM, ultrasonic vessel detection (4 sensors fitted; per L8 only
-2 currently deliver echoes — sufficient for presence detection but not
-within-pair direction), ESP32-CAM vision, L293L motor control with
-closed-loop position from the deck
+9-state FSM, ESP32-CAM vision (primary vehicle detection), ultrasonic
+vessel detection (4 sensors fitted; per L8 only US4 actually delivers
+ranging data in v2.2 — sufficient for binary presence but not direction),
+L293L motor control with closed-loop position from the deck
 pot, simulated dynamic counterweights on the HMI, 16-flag fault
 register with edge-triggered FSM events, full safety chain (E-stop
 relay through ULN2803, watchdog, barrier interlocks), and
