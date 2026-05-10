@@ -1,19 +1,19 @@
 # M2: Breadboard Testing Guide — Mechanism & Motor (Eugene)
 
-This guide covers testing the BTS7960 Motor Driver and physical limits.
+This guide covers testing the L293D Motor Driver and physical limits.
 
 ## Objective
 Verify the motor driver receives PWM signals correctly, responds to limit switches, and the stall-current ADC reading functions.
 
 ## Hardware Needed
 - ESP32
-- BTS7960 Motor Driver module
+- L293D Motor Driver module
 - 12V DC Motor (or a multimeter/oscilloscope to read output)
 - 12V Power Supply
 - Breadboard & wires
 
 ## Wiring
-1. **BTS7960 to ESP32:**
+1. **L293D to ESP32:**
    - `L_EN` & `R_EN` -> 3.3V (Enable both sides)
    - `RPWM` -> `GPIO 32` (Note: Actually moved to IN1/IN2 on L293D equivalents, check pin_config.h. Default: `GPIO 25` and `GPIO 26`)
 2. **Motor:** Connect to motor output terminals.

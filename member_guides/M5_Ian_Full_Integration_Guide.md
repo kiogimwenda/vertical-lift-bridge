@@ -8,7 +8,7 @@ Verify power distribution, shared ground loops, logic-level shifting, and comple
 ## Master Hardware List
 - 1x Main ESP32
 - 1x ESP32-CAM
-- 1x BTS7960 Driver + 12V Motor
+- 1x L293D Driver + 12V Motor
 - 4x HC-SR04 Sensors
 - 1x ILI9341 TFT Display
 - 1x 74HC595 Shift Register + LEDs
@@ -18,7 +18,7 @@ Verify power distribution, shared ground loops, logic-level shifting, and comple
 
 ## Power Architecture (CRITICAL)
 Before wiring data pins, establish the power rails:
-1. **12V Rail:** Connect the main PSU to the BTS7960 motor power.
+1. **12V Rail:** Connect the main PSU to the L293D motor power.
 2. **5V Rail:** Use a buck converter (LM2596) to step 12V down to 5V. 
    - Connect the 5V Rail to: ESP32 `VIN`, ESP32-CAM `5V`, HC-SR04 `VCC` x4, Relay `VCC`, Shift Register `VCC`, Servos `VCC`.
 3. **3.3V Rail:** Use the ESP32's onboard 3.3V pin to power the ILI9341 `VCC` and `LED` (if not using PWM).
@@ -39,7 +39,7 @@ Do not connect everything at once. Build and test sequentially:
 5. **Sensors:** Connect the 4x HC-SR04s using the **Shared Trigger Design** (all 4 TRIG pins tied to GPIO 5). Verify echo voltage dividers are outputting exactly 3.3V on a multimeter before connecting to the ESP32.
 6. **Vision:** Power the ESP32-CAM. Connect the UART crossover. Verify JSON heartbeats on the Telemetry page.
 7. **Position Encoding:** Wire a 10k potentiometer to `GPIO 35` to simulate the bridge's physical position encoder.
-8. **High Power:** Finally, connect the 12V rail and BTS7960. 
+8. **High Power:** Finally, connect the 12V rail and L293D. 
 
 ## Final Validation
 With everything wired, set the HMI to **AUTO MODE**. Walk your hand across the upstream ultrasonic sensors. The system must:
