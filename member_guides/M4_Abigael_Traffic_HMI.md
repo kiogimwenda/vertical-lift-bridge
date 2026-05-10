@@ -509,7 +509,7 @@ Mapping:
 |---|---|---|
 | BTN1 | HMI_CMD_RAISE | EVT_OPERATOR_RAISE — start a cycle from IDLE |
 | BTN2 | HMI_CMD_LOWER | EVT_OPERATOR_LOWER — exit RAISED_HOLD early |
-| BTN3 | HMI_CMD_HOLD | EVT_OPERATOR_HOLD — pause mid-travel (M1's TODO) |
+| BTN3 | HMI_CMD_HOLD | EVT_OPERATOR_HOLD — pause mid-travel (transitions to RAISED_HOLD; auto-times-out after 8 s or yields to operator LOWER) |
 | BTN4 | HMI_CMD_CLEAR_FAULT | EVT_FAULT_CLEARED — leave STATE_FAULT |
 | BTN5 | HMI_CMD_NEXT_SCREEN | LVGL screen rotation: MAIN → TELEMETRY → FAULTS → SETTINGS |
 
