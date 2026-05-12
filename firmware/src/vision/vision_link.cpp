@@ -54,8 +54,9 @@ static void parse_line(const char* line, size_t len) {
 }
 
 void vision_link_init(void) {
-    s_uart.begin(115200, SERIAL_8N1, PIN_UART2_RX, PIN_UART2_TX);
+    s_uart.end(); // Stop if auto-started
     s_uart.setRxBufferSize(512);
+    s_uart.begin(VISION_BAUD, SERIAL_8N1, PIN_UART2_RX, PIN_UART2_TX);
     Serial.println("[vision] UART2 init @ 115200");
 }
 

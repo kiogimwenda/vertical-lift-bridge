@@ -12,7 +12,7 @@
 #define PIN_MOTOR_RELAY      32     // Safety relay
 #define PIN_DECK_POSITION    35     // ADC1_CH7, pot
 
-#define LEDC_MOTOR_FREQ_HZ   20000
+#define LEDC_MOTOR_FREQ_HZ   4000
 #define LEDC_MOTOR_RES_BITS  13
 #define LEDC_MOTOR_CH_FWD    0
 #define LEDC_MOTOR_CH_REV    1
@@ -50,17 +50,15 @@
 #define PIN_595_OE_N         -1     // Hardware tie to GND
 
 // ====================== SERVOS (SG90 ×2) ============================
-#define PIN_SERVO_LEFT        0
-#define PIN_SERVO_RIGHT      27     // Wait, 27 is 595_LATCH! Let's tie Servos together on 0!
-#undef PIN_SERVO_RIGHT
-#define PIN_SERVO_RIGHT       0     // Both servos driven by same PWM pin
+#define PIN_SERVO_LEFT        3
+#define PIN_SERVO_RIGHT       3     // Both servos driven by same PWM pin
 #define LEDC_SERVO_FREQ_HZ   50
 #define LEDC_SERVO_RES_BITS  16
 #define LEDC_SERVO_LEFT_CH    3
 #define LEDC_SERVO_RIGHT_CH   3
 
 // ====================== BUZZER ======================================
-#define PIN_BUZZER            1     // GPIO1 (USB_TX) repurposed after boot for buzzer
+#define PIN_BUZZER           -1     // Disabled to preserve UART TX0
 #define LEDC_BUZZER_CH        5
 
 // ====================== OPERATOR PANEL & ESTOP ======================

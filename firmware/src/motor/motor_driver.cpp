@@ -37,8 +37,8 @@
 // ---------------------------------------------------------------------------
 #define LEDC_CH_IN1     0          // motor IN1 (forward/up) PWM
 #define LEDC_CH_IN2     1          // motor IN2 (reverse/down) PWM
-#define LEDC_RES_BITS   13         // 0..8191 duty (matches MOTOR_PWM_MAX)
-#define LEDC_FREQ_HZ    20000      // above audible
+#define LEDC_RES_BITS   LEDC_MOTOR_RES_BITS // 0..8191 duty (matches MOTOR_PWM_MAX)
+#define LEDC_FREQ_HZ    LEDC_MOTOR_FREQ_HZ  // 4000 Hz, satisfying 80MHz APB limit
 
 // ---------------------------------------------------------------------------
 // Calibration — ADC counts per millimetre of deck travel.

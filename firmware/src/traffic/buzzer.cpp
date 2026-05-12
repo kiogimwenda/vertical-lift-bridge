@@ -17,9 +17,11 @@ static uint32_t s_off_time_ms = 0;
 static uint8_t  s_pattern     = 0;     // 0 idle, 1 fault, 2 estop
 
 void buzzer_init(void) {
-    ledcSetup(LEDC_CH_BUZZER, 2700, LEDC_RES_BUZ);
-    ledcAttachPin(PIN_BUZZER, LEDC_CH_BUZZER);
-    ledcWrite(LEDC_CH_BUZZER, 0);
+    if (PIN_BUZZER != -1) {
+        ledcSetup(LEDC_CH_BUZZER, 2700, LEDC_RES_BUZ);
+        ledcAttachPin(PIN_BUZZER, LEDC_CH_BUZZER);
+        ledcWrite(LEDC_CH_BUZZER, 0);
+    }
     Serial.println("[buz] init OK");
 }
 

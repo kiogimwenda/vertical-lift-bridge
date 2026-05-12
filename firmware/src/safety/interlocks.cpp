@@ -17,12 +17,19 @@
 #include "../pin_config.h"
 #include "../safety/fault_register.h"
 #include <Arduino.h>
-#include <ESP32Servo.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
-static Servo s_servo_l;
-static Servo s_servo_r;
+// Servo pulse width calculation (500us to 2400us mapped to 0-180 deg)
+// 16-bit resolution at 50Hz: 1 bit = 20ms / 65536 = 0.305us
+#define SERVO_PULSE_MIN 1638 // ~500us
+#define SERVO_PULSE_MAX 7864 // ~2400us
+
+static void set_servo_angle(uint8_t angle) {
+    if (angle > 180) angle = 180;
+    uint32_t duty = SERVO_PULSE_MIN + ((SERVO_PULSE_MAX - SERVO_PULSE_MIN) * angle) / 180;
+    ledcWrite(LEDC_SERVO_LEFT_CH, duty);
+}
 
 static volatile bool s_estop_now = false;
 static uint8_t s_target_angle = BARRIER_DOWN_ANGLE;
@@ -40,12 +47,10 @@ void interlocks_init(void) {
     pinMode(PIN_RELAY, OUTPUT);
     digitalWrite(PIN_RELAY, LOW);   // Start de-energised — motor power off
 
-    s_servo_l.setPeriodHertz(50);
-    s_servo_r.setPeriodHertz(50);
-    s_servo_l.attach(PIN_SERVO_L, 500, 2400);
-    s_servo_r.attach(PIN_SERVO_R, 500, 2400);
-    s_servo_l.write(BARRIER_UP_ANGLE);
-    s_servo_r.write(BARRIER_UP_ANGLE);
+    ledcSetup(LEDC_SERVO_LEFT_CH, LEDC_SERVO_FREQ_HZ, LEDC_SERVO_RES_BITS);
+    ledcAttachPin(PIN_SERVO_L, LEDC_SERVO_LEFT_CH);
+    
+    set_servo_angle(BARRIER_UP_ANGLE);
     s_target_angle = BARRIER_UP_ANGLE;
 
     Serial.println("[ilk] init OK (relay off until first OK eval)");
@@ -55,14 +60,12 @@ void interlocks_request_barriers(uint8_t angle) {
     s_target_angle       = angle;
     s_barrier_started_ms = millis();
     s_barrier_done_prev  = false;   // arm rising-edge detection
-    s_servo_l.write(angle);
-    s_servo_r.write(angle);
+    set_servo_angle(angle);
 }
 
 void interlocks_force_safe(void) {
     digitalWrite(PIN_RELAY, LOW);   // Cut motor power
-    s_servo_l.write(BARRIER_DOWN_ANGLE);
-    s_servo_r.write(BARRIER_DOWN_ANGLE);
+    set_servo_angle(BARRIER_DOWN_ANGLE);
 }
 
 bool interlocks_estop_active(void) { return s_estop_now; }

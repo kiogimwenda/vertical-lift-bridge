@@ -43,11 +43,12 @@ static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px
 
 static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     uint16_t tx, ty;
-    bool touched = s_tft.getTouch(&tx, &ty, 600);
+    bool touched = s_tft.getTouch(&tx, &ty, 250); // Lower threshold for better sensitivity
     if (touched) {
         data->state = LV_INDEV_STATE_PRESSED;
-        data->point.x = tx;
-        data->point.y = ty;
+        // Coordinates are already mapped to screen space by TFT_eSPI calibration
+        data->point.x =320 - tx;
+        data->point.y = 240 -ty;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -67,6 +68,7 @@ static void g_status_snapshot(void) {
 static lv_obj_t *tv;
 static lv_obj_t *pg_home, *pg_ops, *pg_vision, *pg_cw, *pg_settings;
 static lv_obj_t *header, *lbl_state, *lbl_pos, *bar_pos;
+static lv_obj_t *lbl_mot_stat; // Separate label for motor status to handle color properly
 static lv_obj_t *led_road_r, *led_road_y, *led_road_g;
 static lv_obj_t *meter_motor;
 
@@ -368,12 +370,14 @@ static void ui_init() {
     lv_obj_add_event_cb(header, header_click_cb, LV_EVENT_CLICKED, NULL);
 
     lbl_state = lv_label_create(header);
-    lv_label_set_text(lbl_state, "");
-    lv_obj_set_style_bg_color(lbl_state, lv_color_black(), 0);
-    lv_obj_set_style_bg_opa(lbl_state, LV_OPA_COVER, 0);
-    lv_obj_set_style_pad_all(lbl_state, 2, 0);
-    lv_obj_set_style_radius(lbl_state, 4, 0);
-    lv_obj_center(lbl_state);
+    lv_label_set_text(lbl_state, "SYS: INIT");
+    lv_obj_set_style_text_font(lbl_state, &lv_font_montserrat_14, 0);
+    lv_obj_align(lbl_state, LV_ALIGN_LEFT_MID, 10, 0);
+
+    lbl_mot_stat = lv_label_create(header);
+    lv_label_set_text(lbl_mot_stat, "MOT: IDLE");
+    lv_obj_set_style_text_font(lbl_mot_stat, &lv_font_montserrat_14, 0);
+    lv_obj_align(lbl_mot_stat, LV_ALIGN_RIGHT_MID, -10, 0);
 
     tv = lv_tabview_create(lv_screen_active());
     lv_tabview_set_tab_bar_position(tv, LV_DIR_BOTTOM);
@@ -399,32 +403,38 @@ static void refresh_active(void) {
     g_status_snapshot();
 
     const char* state_names[] = {"IDLE", "CLEARING", "RAISING", "HOLD", "LOWERING", "OPENING", "FAULT", "ESTOP", "INIT"};
-    const char* sys_col = "#00FF00"; 
-    if(s_local.state == STATE_FAULT || s_local.state == STATE_ESTOP) sys_col = "#FF0000"; 
-    else if(s_local.state == STATE_RAISED_HOLD) sys_col = "#FFA500"; 
-    else if(s_local.state != STATE_IDLE) sys_col = "#00FFFF"; 
+    
+    // Status Bar Color logic (simplified for LVGL 9)
+    lv_color_t sys_color = lv_palette_main(LV_PALETTE_GREEN);
+    if(s_local.state == STATE_FAULT || s_local.state == STATE_ESTOP) sys_color = lv_palette_main(LV_PALETTE_RED);
+    else if(s_local.state == STATE_RAISED_HOLD) sys_color = lv_palette_main(LV_PALETTE_ORANGE);
+    else if(s_local.state != STATE_IDLE) sys_color = lv_palette_main(LV_PALETTE_CYAN);
+
+    char buf_sys[64];
+    sprintf(buf_sys, "SYS: %s %s", state_names[s_local.state], s_local.auto_mode_active ? "[AUTO]" : "[MAN]");
+    lv_label_set_text(lbl_state, buf_sys);
+    lv_obj_set_style_text_color(lbl_state, sys_color, 0);
 
     const char* mot_stat = "IDLE";
-    const char* mot_col = "#FFFFFF"; 
+    lv_color_t mot_color = lv_color_white();
     if (s_local.motor_current_ma == 0) {
         mot_stat = "IDLE";
-        mot_col = "#FFFFFF";
+        mot_color = lv_color_white();
     } else if (s_local.motor_current_ma < 1500) {
         mot_stat = "OK";
-        mot_col = "#00FF00"; 
+        mot_color = lv_palette_main(LV_PALETTE_GREEN);
     } else if (s_local.motor_current_ma <= 1980) {
-        mot_stat = "WARNING";
-        mot_col = "#FFFF00"; 
+        mot_stat = "WARN";
+        mot_color = lv_palette_main(LV_PALETTE_YELLOW);
     } else {
-        mot_stat = "CRITICAL";
-        mot_col = (s_local.uptime_ms % 500 < 250) ? "#FF0000" : "#FFFFFF"; 
+        mot_stat = "CRIT";
+        mot_color = (s_local.uptime_ms % 500 < 250) ? lv_palette_main(LV_PALETTE_RED) : lv_color_white();
     }
 
-    char buf_s[128];
-    const char* mode_str = s_local.auto_mode_active ? "#FF00FF [AUTO]#" : "#AAAAAA [MAN] #";
-    sprintf(buf_s, "%s SYS:%s# %s| %s MOT:%s#", sys_col, state_names[s_local.state], mode_str, mot_col, mot_stat);
-    lv_label_set_text(lbl_state, buf_s);
-    lv_label_set_text_selection_start(lbl_state, LV_DRAW_LABEL_NO_TXT_SEL); 
+    char buf_mot[32];
+    sprintf(buf_mot, "MOT: %s", mot_stat);
+    lv_label_set_text(lbl_mot_stat, buf_mot);
+    lv_obj_set_style_text_color(lbl_mot_stat, mot_color, 0);
 
     char buf_p[16];
     sprintf(buf_p, "%d mm", s_local.deck_position_mm);
@@ -486,9 +496,11 @@ bool hmi_cmd_post(HmiCmd_t cmd) {
 void task_hmi(void* arg) {
     Serial.println("[hmi] task start (Core 1)");
 
-    ledcSetup(LEDC_CH_BL, 5000, LEDC_RES_BL);
-    ledcAttachPin(PIN_TFT_BL, LEDC_CH_BL);
-    ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * 80 / 100); 
+    if (PIN_TFT_BL != -1) {
+        ledcSetup(LEDC_CH_BL, 5000, LEDC_RES_BL);
+        ledcAttachPin(PIN_TFT_BL, LEDC_CH_BL);
+        ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * 80 / 100);
+    } 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
         g_status.hmi_brightness = 80;
         xSemaphoreGive(g_status_mutex);
@@ -511,6 +523,7 @@ void task_hmi(void* arg) {
 
     s_indev = lv_indev_create();
     lv_indev_set_type(s_indev, LV_INDEV_TYPE_POINTER);
+    lv_indev_set_display(s_indev, s_disp); // Mandatory in LVGL 9
     lv_indev_set_read_cb(s_indev, lvgl_touch_cb);
 
     s_lvgl_mutex = xSemaphoreCreateMutex();

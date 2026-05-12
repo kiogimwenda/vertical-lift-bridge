@@ -66,15 +66,10 @@ static uint8_t state_to_bits(TrafficLightState_t s, uint8_t base_shift, bool bli
 }
 
 void traffic_lights_init(void) {
-    // OE stays a permanent OUTPUT (driven LOW = chain enabled).
-    // LATCH (shared with US2_TRIG) is already configured OUTPUT by
-    // sensors_ultrasonic_init — both drivers want OUTPUT, so we just
-    // assert the idle level here.
-    // DATA and CLOCK rest as INPUT_PULLUP so the HC-SR04 driver can use
-    // the same physical GPIOs for ECHO reads between shifts (cf. file
-    // header).
-    pinMode(PIN_595_OE,   OUTPUT);
-    digitalWrite(PIN_595_OE, LOW);
+    if (PIN_595_OE >= 0) {
+        pinMode(PIN_595_OE, OUTPUT);
+        digitalWrite(PIN_595_OE, LOW);
+    }
     pinMode(PIN_595_LATCH, OUTPUT);
     digitalWrite(PIN_595_LATCH, HIGH);    // idle high — released
     pinMode(PIN_595_DATA,  INPUT_PULLUP);

@@ -1,0 +1,32 @@
+Hello! Here is the shopping list for the breadboard testing components based on the BOM:
+
+*   **JGA25-370 12V DC gearmotor 100 RPM** - KES 1,300 (K-Technics)
+*   **MGN12 linear rail 200 mm + carriage** (2 pieces) - KES 2,500 (Nerokas)
+*   **SG90 micro servo (barrier arms)** (2 pieces) - KES 600 (Pixel)
+*   **HC-SR04 ultrasonic module** (4 pieces) - KES 720 (Nerokas)
+*   **ESP32-CAM AI-Thinker** - KES 1,500 (Nerokas)
+*   **Limit switch microswitch SPDT** (4 pieces) - KES 320 (Pixel)
+*   **ESP32-WROOM-32E module (38-pin DevKit)** - KES 900 (Nerokas)
+*   **L293D H-bridge driver module** - KES 500 (K-Technics)
+*   **12 V / 3 A DC barrel adapter** - KES 30 (Pixel)
+*   **SRD-05VDC-SL-C 5 V relay** - KES 50 (Pixel)
+*   **74HC595 8-bit shift register (DIP-16)** (2 pieces) - KES 60 (Pixel)
+*   **XPT2046 + ILI9341 2.8" 240x320 TFT touch** - KES 1,800 (ASK)
+*   **Passive piezo buzzer 12 mm** - KES 50 (Pixel)
+*   **Mushroom E-stop NC switch (panel)** - KES 320 (Nerokas)
+*   **Tactile push-button 6x6 mm** (6 pieces) - KES 48 (Pixel)
+*   **0805 resistor assortment kit** (1 pack) - KES 125 (Pixel)
+*   **LED 0805 R/Y/G traffic chain** (12 pieces) - KES 60 (Pixel)
+*   **Hookup wire 22 AWG silicone (3 colors)** - KES 350 (Pixel)
+*   **Hookup wire 26 AWG ribbon** - KES 250 (Pixel)
+
+Total estimated cost for these parts: **KES 11,483**
+
+---
+
+**Recommended Shops in Nairobi CBD:**
+
+1.  **Nerokas Cyber Systems:** Great for microcontrollers and sensors. Highly reliable for authentic ESP32 boards and the HC-SR04s.
+2.  **Pixel Electric (Luthuli Avenue):** Your best stop for general electronics, passive components (resistors, LEDs), buttons, relays, and hookup wires.
+3.  **ASK Electronics (Tom Mboya Street):** Specific supplier noted for the ILI9341 TFT display.
+4.  **K-Technics (Online KE / CBD pickup):** Noted supplier for the heavy motors and L293D driver modules.
