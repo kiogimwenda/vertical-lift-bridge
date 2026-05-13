@@ -47,8 +47,8 @@ static void lvgl_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     if (touched) {
         data->state = LV_INDEV_STATE_PRESSED;
         // Coordinates are already mapped to screen space by TFT_eSPI calibration
-        data->point.x =320 - tx;
-        data->point.y = 240 -ty;
+        data->point.x = tx;
+        data->point.y = ty;
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
@@ -511,7 +511,7 @@ void task_hmi(void* arg) {
     s_tft.fillScreen(TFT_BLACK);
     s_tft.initDMA();
 
-    uint16_t cal[5] = { 318, 3505, 273, 3539, 6 };
+    uint16_t cal[5] = { 318, 3505, 273, 3539, 1 }; // 1 = rotate=1, inv_x=0, inv_y=0 (un-mirror X)
     s_tft.setTouch(cal);
 
     lv_init();
