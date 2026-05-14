@@ -27,8 +27,8 @@ Before wiring data pins, establish the power rails:
 ## E-Stop Hardware Integration
 The E-Stop must physically cut power to dangerous components, bypassing software.
 1. Wire the 12V PSU positive wire through the **Normally Closed (NC)** contacts of the E-Stop button before it reaches the Motor Driver.
-2. Tap a secondary wire from the NC contact, through a voltage divider (12V -> 3.3V), to `GPIO 35`.
-3. *Test:* Hitting the E-stop must instantly kill the motor physically, and the ESP32 should register `EVT_ESTOP_PRESSED` via GPIO 35, turning the HMI screen Red.
+2. Tap a secondary wire from the NC contact, through a voltage divider (12V -> 3.3V), to `GPIO 36`.
+3. *Test:* Hitting the E-stop must instantly kill the motor physically, and the ESP32 should register `EVT_ESTOP_PRESSED` via GPIO 36, turning the HMI screen Red.
 
 ## Step-by-Step Integration
 Do not connect everything at once. Build and test sequentially:

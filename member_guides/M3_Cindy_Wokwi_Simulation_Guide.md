@@ -39,20 +39,20 @@ Refer to `firmware/src/pin_config.h` in your actual project for the exact pins. 
 
 * **US1 (Upstream Beam A):**
   * `VCC` -> `5V`, `GND` -> `GND`
-  * `TRIG` -> `GPIO 5` *(Note: using GPIO 4/5 as free pins for sim since 5 is shared)*
+  * `TRIG` -> `GPIO 5`
   * `ECHO` -> `GPIO 18`
 * **US2 (Upstream Beam B):**
   * `VCC` -> `5V`, `GND` -> `GND`
-  * `TRIG` -> `GPIO 19`
-  * `ECHO` -> `GPIO 21`
+  * `TRIG` -> `GPIO 5`
+  * `ECHO` -> `GPIO 19`
 * **US3 (Downstream Beam A):**
   * `VCC` -> `5V`, `GND` -> `GND`
-  * `TRIG` -> `GPIO 22`
-  * `ECHO` -> `GPIO 23`
+  * `TRIG` -> `GPIO 5`
+  * `ECHO` -> `GPIO 21`
 * **US4 (Downstream Beam B):**
   * `VCC` -> `5V`, `GND` -> `GND`
-  * `TRIG` -> `GPIO 1` *(TX0)*
-  * `ECHO` -> `GPIO 3` *(RX0)*
+  * `TRIG` -> `GPIO 5`
+  * `ECHO` -> `GPIO 22`
 
 ### 2.3 Implementing the Simulation Code
 Replace the code in `sketch.ino` with the mock sensor task. This simulates the `task_sensors` from the main project, handling all four sensors and combining their logic.
@@ -90,17 +90,18 @@ long readUltrasonic(int trigPin, int echoPin) {
 }
 
 void task_sensors(void *pvParameters) {
-  pinMode(US1_TRIG, OUTPUT); pinMode(US1_ECHO, INPUT);
-  pinMode(US2_TRIG, OUTPUT); pinMode(US2_ECHO, INPUT);
-  pinMode(US3_TRIG, OUTPUT); pinMode(US3_ECHO, INPUT);
-  pinMode(US4_TRIG, OUTPUT); pinMode(US4_ECHO, INPUT);
+  pinMode(SHARED_TRIG, OUTPUT);
+  pinMode(US1_ECHO, INPUT);
+  pinMode(US2_ECHO, INPUT);
+  pinMode(US3_ECHO, INPUT);
+  pinMode(US4_ECHO, INPUT);
 
   for (;;) {
     // Note: To avoid cross-talk, sensors are pulsed sequentially
-    dist_us1 = readUltrasonic(US1_TRIG, US1_ECHO);
-    dist_us2 = readUltrasonic(US2_TRIG, US2_ECHO);
-    dist_us3 = readUltrasonic(US3_TRIG, US3_ECHO);
-    dist_us4 = readUltrasonic(US4_TRIG, US4_ECHO);
+    dist_us1 = readUltrasonic(SHARED_TRIG, US1_ECHO);
+    dist_us2 = readUltrasonic(SHARED_TRIG, US2_ECHO);
+    dist_us3 = readUltrasonic(SHARED_TRIG, US3_ECHO);
+    dist_us4 = readUltrasonic(SHARED_TRIG, US4_ECHO);
 
     bool approach = false;
     bool leave = false;
@@ -232,4 +233,4 @@ void task_vision(void *pvParameters) {
 By using Wokwi in this manner, M3 can:
 1. Validate the math and timing for the complete quad `task_sensors` array (delay between Beam A and Beam B breaking on both the upstream and downstream sides).
 2. Validate the JSON parsing logic, memory allocation (`StaticJsonDocument` sizing), and heartbeat timeout logic for the `task_vision` module without needing physical hardware.
-3. Safely intentionally trigger edge cases (like partial JSON strings or bouncing ultrasonic readings) to ensure the firmware handles them gracefully.
+3. Safely intentionally trigger edge cases (like partial JSON strings or bouncing ultrasonic readings) to ensure the firmware handles them gracefully.ully.

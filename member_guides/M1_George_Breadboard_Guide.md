@@ -13,9 +13,8 @@ Verify that `fsm_engine.cpp` transitions correctly across all 9 states in respon
 
 ## Wiring
 Since you are testing the core logic, we will mock the physical triggers using buttons wired to the ESP32.
-1. **Top Limit Switch Mock:** Wire a button between `GND` and `GPIO 15` (ensure internal pull-up is used in code, or wire a 10k pull-up resistor to 3.3V).
-2. **Bottom Limit Switch Mock:** Wire a button between `GND` and `GPIO 2`.
-3. **Operator Raise Mock:** We will trigger this via the Serial terminal instead of a button to keep wiring simple.
+1. **Limit Switch Mock:** Wire a single button between `GND` and `GPIO 39` (`PIN_LIMIT_ANYHIT`) (ensure a 10k pull-up resistor to 3.3V is used since GPIO 39 has no internal pull-up).
+2. **Operator Raise Mock:** We will trigger this via the Serial terminal instead of a button to keep wiring simple.
 
 ## Firmware Adjustments for Testing
 To test the FSM in isolation, we need to artificially inject events.
@@ -40,9 +39,9 @@ To test the FSM in isolation, we need to artificially inject events.
    - Type `v` and press Enter to simulate `EVT_VEHICLE_DETECTED`.
    - Observe the FSM transition to `STATE_ROAD_CLEARING`.
    - Wait for the simulated barriers/road logic to pass; it should enter `STATE_RAISING`.
-   - Press your Top Limit Switch button. The FSM should log `EVT_TOP_LIMIT_HIT` and transition to `STATE_RAISED_HOLD`.
+   - Press your Limit Switch button. The FSM should log `EVT_TOP_LIMIT_HIT` (or equivalent any-hit) and transition to `STATE_RAISED_HOLD`.
    - Wait 8 seconds. The FSM should print `EVT_HOLD_TIMEOUT` and enter `STATE_LOWERING`.
-   - Press your Bottom Limit Switch button. The FSM enters `STATE_ROAD_OPENING`, then back to `STATE_IDLE`.
+   - Press your Limit Switch button again. The FSM enters `STATE_ROAD_OPENING`, then back to `STATE_IDLE`.
 
 ## Pass Criteria
 The FSM traverses the entire 9-state cycle strictly according to the guard conditions without hanging or rebooting.

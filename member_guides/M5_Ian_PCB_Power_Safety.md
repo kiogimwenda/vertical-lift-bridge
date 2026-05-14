@@ -604,24 +604,24 @@ This is your most safety-critical sheet. Build it carefully.
   - GPIO 32 → `MOTOR_RELAY`
   - GPIO 16 → `VISION_RX`
   - GPIO 17 → `VISION_TX`
-  - GPIO 1 → `BUZZER` (also USB TX during programming)
-  - GPIO 3 → `US4_ECHO` (also USB RX)
-  - GPIO 5 → `SERVO_LEFT` (also US1_TRIG — time-multiplexed)
-  - GPIO 18 → `US1_ECHO` (also 595_CLOCK)
-  - GPIO 19 → `595_LATCH`
-  - GPIO 21 → `595_OE_N` (also US2_ECHO)
-  - GPIO 22 → `SERVO_RIGHT` (also US3_TRIG)
+  - GPIO 3 → `SERVO_LEFT` and `SERVO_RIGHT` (Both driven by same PWM pin)
+  - GPIO 4 → `595_CLOCK`
+  - GPIO 27 → `595_LATCH`
   - GPIO 23 → `595_DATA`
-  - GPIO 0 → `ESTOP_IRQ` (also BOOT)
-  - GPIO 2 → `TFT_DC` (strapping)
-  - GPIO 4 → `TFT_RST`
-  - GPIO 12 → `TFT_MISO` (strapping)
+  - -1 → `595_OE_N` (Hardware tie to GND)
+  - -1 → `BUZZER` (Disabled to preserve UART TX0)
+  - GPIO 5 → `US_SHARED_TRIG`
+  - GPIO 18 → `US1_ECHO`
+  - GPIO 19 → `US2_ECHO`
+  - GPIO 21 → `US3_ECHO`
+  - GPIO 22 → `US4_ECHO`
+  - GPIO 36 → `ESTOP_IRQ`
+  - GPIO 2 → `TFT_DC`
+  - GPIO 12 → `TFT_MISO`
   - GPIO 13 → `TFT_MOSI`
   - GPIO 14 → `TFT_SCK`
-  - GPIO 15 → `TFT_CS` (strapping)
-  - GPIO 27 → `TFT_BL`
+  - GPIO 15 → `TFT_CS`
   - GPIO 33 → `TOUCH_CS`
-  - GPIO 36 → `TOUCH_IRQ`
 - VCC pin → `+3V3` global label.
 - GND pins → `GND` global label.
 - EN → tied via 10 kΩ pull-up to +3V3, plus a small tact reset button (`SW_Push` symbol, `Button_Switch_THT:SW_Tactile_Straight_KSA0Axx1LFTR`).

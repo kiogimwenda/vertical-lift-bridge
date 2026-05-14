@@ -14,12 +14,12 @@ Verify SPI graphics rendering, touch responsiveness, and shift-register LED cont
 
 ## Wiring
 1. **Display (SPI):**
-   - MOSI -> GPIO 23, MISO -> GPIO 19, SCK -> GPIO 18, CS -> GPIO 5, DC -> GPIO 2, RST -> EN/RST.
-   - Touch CS -> GPIO 21.
+   - MOSI -> GPIO 13, MISO -> GPIO 12, SCK -> GPIO 14, CS -> GPIO 15, DC -> GPIO 2, RST -> EN/RST.
+   - Touch CS -> GPIO 33.
 2. **Shift Register (74HC595):**
-   - SER (Data) -> GPIO 25
-   - RCLK (Latch) -> GPIO 33
-   - SRCLK (Clock) -> GPIO 32
+   - SER (Data) -> GPIO 23
+   - RCLK (Latch) -> GPIO 27
+   - SRCLK (Clock) -> GPIO 4
    - Connect the LEDs to QA-QF on the shift register via resistors.
 
 ## Firmware Execution

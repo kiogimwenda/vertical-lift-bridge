@@ -560,9 +560,9 @@ A single 74HC595 shift register drives 8 outputs from 3 GPIOs. We use 6 of the 8
 | 595 pin | Function | ESP32 GPIO | `pin_config.h` constant |
 |---|---|---|---|
 | 14 (SER) | Serial data in | GPIO 23 | `PIN_595_DATA` |
-| 11 (SRCLK) | Serial clock | GPIO 18 | `PIN_595_CLOCK` |
-| 12 (RCLK) | Latch | GPIO 19 | `PIN_595_LATCH` |
-| 13 (OE̅) | Output enable (active LOW) | GPIO 21 | `PIN_595_OE_N` (alias `PIN_595_OE`) |
+| 11 (SRCLK) | Serial clock | GPIO 4 | `PIN_595_CLOCK` |
+| 12 (RCLK) | Latch | GPIO 27 | `PIN_595_LATCH` |
+| 13 (OE̅) | Output enable (active LOW) | Tied to GND | `PIN_595_OE_N` (Hardware tie to GND) |
 | 10 (SRCLR̅) | Async clear | tied HIGH (5 V) | — |
 
 ### 12.2 Wiring on breadboard

@@ -293,11 +293,9 @@ The TRIG pin can connect directly to ESP32 (3.3 V output is enough to trigger th
 | Sensor | TRIG pin | ECHO pin | Role |
 |---|---|---|---|
 | US1 | GPIO 5 | GPIO 18 | Upstream Beam A |
-| US2 | GPIO 19 | GPIO 21 | Upstream Beam B |
-| US3 | GPIO 22 | GPIO 23 | Downstream Beam A |
-| US4 | GPIO 1 (USB TX, see note) | GPIO 3 (USB RX, see note) | Downstream Beam B |
-
-> **US4 conflict warning:** GPIO 1 and 3 are also UART0 (USB serial). When the USB cable is plugged in for monitoring, US4 will give garbage readings. For demo, either accept that US4 is dead during USB monitoring (US3 alone still works for downstream), or unplug the USB and rely on the touchscreen for diagnostics.
+| US2 | GPIO 5 | GPIO 19 | Upstream Beam B |
+| US3 | GPIO 5 | GPIO 21 | Downstream Beam A |
+| US4 | GPIO 5 | GPIO 22 | Downstream Beam B |
 
 ### 5.4 Beam geometry
 Each pair has Beam A and Beam B spaced **3 cm apart** along the direction of vessel travel. The 3 cm value is in `system_types.h` as `ULTRASONIC_BEAM_SPACING_CM = 3`.
@@ -495,6 +493,13 @@ Firmware:
 - [ ] Direction inference 8/10 correct for both pairs.
 - [ ] Vision JSON arriving at ≥ 8 Hz steady state on UART2.
 - [ ] `[fault] vision-lost` and `[fault] us-fail` both clear after 30 s of healthy operation.
+- [ ] Combined OR detection test (Step 7) passes all 6 cases.
+
+Documentation:
+- [ ] `docs/sensor_calibration.md` filled with measured ROI / thresholds / trigger distance.
+- [ ] Wiring photos in `docs/wiring/` (CAM, each ultrasonic pair).
+- [ ] 1-hour stability log committed (zero faults).
+and `[fault] us-fail` both clear after 30 s of healthy operation.
 - [ ] Combined OR detection test (Step 7) passes all 6 cases.
 
 Documentation:
