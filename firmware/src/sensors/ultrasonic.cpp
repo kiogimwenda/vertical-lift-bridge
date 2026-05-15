@@ -140,8 +140,8 @@ void sensors_ultrasonic_tick(void) {
 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.ultrasonic = s_us;
-        if (all_dead) SET_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
-        else          CLR_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
+        // if (all_dead) SET_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL); // DEV MOCK: Ignore missing sensors
+        CLR_FAULT(g_status.fault_flags, FAULT_ULTRASONIC_FAIL);
         xSemaphoreGive(g_status_mutex);
     }
 

@@ -79,17 +79,15 @@ void traffic_lights_init(void) {
 }
 
 void traffic_lights_set_road(TrafficLightState_t s)   { s_road = s; }
-void traffic_lights_set_marine(TrafficLightState_t s) { s_marine = s; }
 
 void traffic_lights_tick(void) {
     s_blink_phase ^= 1;
     bool on = (s_blink_phase != 0);
-    uint8_t bits = state_to_bits(s_road, 0, on) | state_to_bits(s_marine, 3, on);
+    uint8_t bits = state_to_bits(s_road, 0, on);
     shift_out(bits);
 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
         g_status.lights_road   = bits & 0x07;
-        g_status.lights_marine = (bits >> 3) & 0x07;
         xSemaphoreGive(g_status_mutex);
     }
 }

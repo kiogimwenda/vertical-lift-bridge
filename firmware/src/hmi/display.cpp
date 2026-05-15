@@ -132,6 +132,7 @@ static void header_click_cb(lv_event_t * e) {
 
     lv_obj_t * lbl = lv_label_create(mbox);
     lv_label_set_text(lbl, buf);
+    lv_obj_set_style_text_color(lbl, lv_color_black(), 0);
     lv_obj_center(lbl);
 
     lv_timer_t * timer = lv_timer_create(popup_timer_cb, 4000, mbox);
@@ -216,7 +217,8 @@ static void build_ops(lv_obj_t *parent) {
     lv_arc_set_rotation(meter_motor, 135);
     lv_arc_set_bg_angles(meter_motor, 0, 270);
     lv_arc_set_range(meter_motor, 0, 2500);
-    lv_obj_remove_style(meter_motor, NULL, LV_PART_KNOB);
+    lv_obj_set_style_bg_color(meter_motor, lv_palette_main(LV_PALETTE_RED), LV_PART_KNOB);
+    lv_obj_set_style_pad_all(meter_motor, 5, LV_PART_KNOB);
     lv_obj_clear_flag(meter_motor, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_set_style_arc_color(meter_motor, lv_palette_main(LV_PALETTE_CYAN), LV_PART_INDICATOR);
 }
@@ -507,6 +509,7 @@ void task_hmi(void* arg) {
     }
 
     s_tft.init();
+    s_tft.invertDisplay(true); // Fix physical screen inversion
     s_tft.setRotation(3); // Landscape for 320x240
     s_tft.fillScreen(TFT_BLACK);
     s_tft.initDMA();
@@ -518,6 +521,7 @@ void task_hmi(void* arg) {
     lv_tick_set_cb(lvgl_tick_cb);
 
     s_disp = lv_display_create(320, 240);
+    lv_display_set_color_format(s_disp, LV_COLOR_FORMAT_RGB565_SWAPPED);
     lv_display_set_buffers(s_disp, s_buf1, s_buf2, sizeof(s_buf1), LV_DISPLAY_RENDER_MODE_PARTIAL);
     lv_display_set_flush_cb(s_disp, lvgl_flush_cb);
 

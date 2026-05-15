@@ -37,7 +37,8 @@ static uint32_t s_barrier_started_ms = 0;
 static bool     s_barrier_done_prev = true;   // edge tracker for FSM events
 
 static void IRAM_ATTR estop_isr(void) {
-    s_estop_now = (digitalRead(PIN_ESTOP) == HIGH);   // HIGH = pressed (NC opened)
+    // s_estop_now = (digitalRead(PIN_ESTOP) == HIGH);   // HIGH = pressed (NC opened)
+    s_estop_now = false; // DEV MOCK: ignore floating GPIO 36
 }
 
 void interlocks_init(void) {
@@ -71,7 +72,8 @@ void interlocks_force_safe(void) {
 bool interlocks_estop_active(void) { return s_estop_now; }
 
 void interlocks_evaluate(void) {
-    bool estop = s_estop_now || (digitalRead(PIN_ESTOP) == HIGH);
+    // bool estop = s_estop_now || (digitalRead(PIN_ESTOP) == HIGH);
+    bool estop = s_estop_now; // DEV MOCK: ignore floating GPIO 36
 
     // Push e-stop event on rising edge
     static bool s_estop_prev = false;

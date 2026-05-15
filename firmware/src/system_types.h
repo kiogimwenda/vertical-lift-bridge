@@ -186,7 +186,6 @@ typedef struct {
 
     // Lights (74HC595 chain)
     uint8_t         lights_road;            // Bitfield: bit0=R, bit1=Y, bit2=G
-    uint8_t         lights_marine;
 
     // Sensing
     UltrasonicStatus_t ultrasonic;

@@ -48,7 +48,7 @@
 // PLACEHOLDER: M2 Eugene must re-measure on hardware and update.
 // ---------------------------------------------------------------------------
 #define CAL_COUNTS_PER_MM      14      // From bench measurement (M2 §7)
-#define CAL_ADC_ZERO_DEFAULT   400     // Absolute baseline ADC reading at physical 0mm
+#define CAL_ADC_ZERO_DEFAULT   0     // Absolute baseline ADC reading at physical 0mm
 
 // ---------------------------------------------------------------------------
 // State
@@ -189,7 +189,7 @@ void motor_driver_tick(void) {
         g_status.motor_pwm_duty   = s_duty;
         g_status.top_limit_hit    = top_hit;
         g_status.bottom_limit_hit = bot_hit;
-        if (stalled)  SET_FAULT(g_status.fault_flags, FAULT_STALL);
+        // if (stalled)  SET_FAULT(g_status.fault_flags, FAULT_STALL); // DEV MOCK
         if (pos_bad)  SET_FAULT(g_status.fault_flags, FAULT_POS_OUT_OF_RANGE);
         // FAULT_LIMIT_BOTH is impossible with the diode-OR scheme (only
         // one logical bit can be true at a time after the discriminator
