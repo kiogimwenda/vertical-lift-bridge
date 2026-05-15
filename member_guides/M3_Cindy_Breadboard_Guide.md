@@ -13,13 +13,12 @@ Verify real-world ultrasonic echo timing and UART JSON parsing from the live cam
 
 ## Wiring
 1. **Ultrasonics (Shared Trigger Design):**
-   - Wire all 4 `TRIG` pins together to the shared `GPIO 5`.
-   - Wire the 4 `ECHO` pins: US1 -> `GPIO 18`, US2 -> `GPIO 19`, US3 -> `GPIO 21`, US4 -> `GPIO 22`.
-   - **CRITICAL:** Use a voltage divider (e.g., 2k and 1k resistors) to step down the 5V Echo output to 3.3V before connecting to the ESP32.
+   - **Power:** VCC to 5V (required for 40kHz ping), GND to GND.
+   - **Trigger:** Shared TRIG pin for all 4 sensors connected to ESP32 GPIO 5.
+   - **Echo (with 1k/2k voltage dividers dropping 5V to 3.3V):** US1 (Upstream A) to GPIO 18, US2 (Upstream B) to GPIO 19, US3 (Downstream A) to GPIO 21, US4 (Downstream B) to GPIO 22.
 2. **ESP32-CAM (UART Link):**
-   - Connect ESP32-CAM `GND` to Main ESP32 `GND`.
-   - Connect ESP32-CAM `U0TX` (Pin 1) to Main ESP32 `U2RX` (GPIO 16).
-   - Connect ESP32-CAM `U0RX` (Pin 3) to Main ESP32 `U2TX` (GPIO 17).
+   - **Power:** 5V to dedicated 5V buck converter (to prevent brownouts), GND to common GND.
+   - **UART to Main ESP32:** CAM U0T (TX) to ESP32 GPIO 16 (RX), CAM U0R (RX) to ESP32 GPIO 17 (TX).
 
 ## Firmware Execution
 1. Power up both ESP32s.

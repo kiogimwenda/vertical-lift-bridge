@@ -24,7 +24,7 @@ bool fsm_guard_init_complete(void) {
 bool fsm_guard_can_clear_road(void) {
     bool ok = false;
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        // Corrected: Vision detects cars ON the bridge, not marine vessels.
+        // Architecture Correction: Vision detects cars ON the bridge, not marine vessels.
         // Only ultrasonic (or manual operator) triggers the marine clearing sequence.
         bool sensor_ok = g_status.ultrasonic.vessel_approaching;
         ok = sensor_ok && !ANY_FAULT(g_status.fault_flags) && !g_status.estop_active;
@@ -37,12 +37,11 @@ bool fsm_guard_can_clear_road(void) {
 bool fsm_guard_road_clear(void) {
     bool ok = false;
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        // Corrected: Vision camera detects if a car is still stuck on the bridge deck
+        // Architecture Correction: Vision camera detects if a car is still stuck on the bridge deck.
+        // We cannot raise the bridge until the camera confirms the deck is empty (!vehicle_present).
         ok = g_status.barrier_left_target_reached
           && g_status.barrier_right_target_reached
-          && !g_status.vision.vehicle_present
-          && !g_status.ultrasonic.upstream_blocked
-          && !g_status.ultrasonic.downstream_blocked;
+          && !g_status.vision.vehicle_present;
         xSemaphoreGive(g_status_mutex);
     }
     return ok;

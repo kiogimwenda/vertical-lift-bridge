@@ -11,6 +11,7 @@ Verify the motor driver receives PWM signals correctly, responds to limit switch
 - 12V DC Motor (or a multimeter/oscilloscope to read output)
 - 12V Power Supply
 - Breadboard & wires
+- 2x SG90 Micro Servos (Barriers)
 
 ## Wiring
 1. **L293D to ESP32:**
@@ -19,6 +20,9 @@ Verify the motor driver receives PWM signals correctly, responds to limit switch
 2. **Motor:** Connect to motor output terminals.
 3. **Power:** Connect 12V Supply. **DO NOT connect 12V to the ESP32 directly!**
 4. **Position Potentiometer:** Wire a 10k pot's outer legs to 3.3V and GND. Wire the middle wiper leg to `GPIO 35`.
+5. **Servo Barriers SG90:**
+   - **Power:** VCC (Red) to dedicated 5V source (NOT ESP32 3.3V), GND (Brown/Black) to common GND.
+   - **Signal:** PWM (Orange/Yellow) of BOTH servos connected to ESP32 GPIO 3.
 
 ## Firmware Execution
 1. Flash the firmware.

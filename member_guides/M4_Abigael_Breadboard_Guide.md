@@ -17,10 +17,10 @@ Verify SPI graphics rendering, touch responsiveness, and shift-register LED cont
    - MOSI -> GPIO 13, MISO -> GPIO 12, SCK -> GPIO 14, CS -> GPIO 15, DC -> GPIO 2, RST -> EN/RST.
    - Touch CS -> GPIO 33.
 2. **Shift Register (74HC595):**
-   - SER (Data) -> GPIO 23
-   - RCLK (Latch) -> GPIO 27
-   - SRCLK (Clock) -> GPIO 4
-   - Connect the LEDs to QA-QF on the shift register via resistors.
+   - **Power:** Pin 16 (VCC) to 3.3V, Pin 8 (GND) to GND.
+   - **Hardwired:** Pin 10 (SRCLR) to 3.3V, Pin 13 (OE) to GND.
+   - **SPI to ESP32:** Pin 14 (DATA) to GPIO 23, Pin 11 (CLOCK) to GPIO 4, Pin 12 (LATCH) to GPIO 27.
+   - **LEDs:** Q0 (Pin 15) to RED Anode, Q1 (Pin 1) to AMBER Anode, Q2 (Pin 2) to GREEN Anode. Cathodes to GND via 220-ohm resistors.
 
 ## Firmware Execution
 1. Flash the firmware.

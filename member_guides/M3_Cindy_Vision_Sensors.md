@@ -205,12 +205,8 @@ For breadboard prototyping (before the PCB exists):
 4. Add a **470 µF electrolytic capacitor** across the CAM 5 V/GND pins, right at the module. This buffers the inrush at camera startup.
 
 ### 4.2 UART wiring
-| ESP32-CAM | Main ESP32 | Wire colour |
-|---|---|---|
-| 5 V (VCC) | (CAM-dedicated buck output, NOT main 5 V) | red |
-| GND | Common GND | black |
-| UOT (U0T / GPIO 1, this is CAM TX) | ESP32 GPIO 16 (`PIN_VISION_RX`, alias `PIN_UART2_RX`) | yellow |
-| UOR (U0R / GPIO 3, this is CAM RX) | (leave open — main → CAM is not used in v1) | — |
+- **Power:** 5V to dedicated 5V buck converter (to prevent brownouts), GND to common GND.
+- **UART to Main ESP32:** CAM U0T (TX) to ESP32 GPIO 16 (RX), CAM U0R (RX) to ESP32 GPIO 17 (TX).
 
 Use **22 AWG silicone wire**, length ≤ 30 cm. Longer runs need shielded cable.
 
@@ -290,12 +286,13 @@ HC-SR04 ECHO pin ──┬── 1 kΩ ────┬── (no connection furt
 The TRIG pin can connect directly to ESP32 (3.3 V output is enough to trigger the SR04).
 
 ### 5.3 Pin assignments (per `pin_config.h`)
-| Sensor | TRIG pin | ECHO pin | Role |
-|---|---|---|---|
-| US1 | GPIO 5 | GPIO 18 | Upstream Beam A |
-| US2 | GPIO 5 | GPIO 19 | Upstream Beam B |
-| US3 | GPIO 5 | GPIO 21 | Downstream Beam A |
-| US4 | GPIO 5 | GPIO 22 | Downstream Beam B |
+- **Power:** VCC to 5V (required for 40kHz ping), GND to GND.
+- **Trigger:** Shared TRIG pin for all 4 sensors connected to ESP32 GPIO 5.
+- **Echo (with 1k/2k voltage dividers dropping 5V to 3.3V):**
+  - US1 (Upstream A) to GPIO 18
+  - US2 (Upstream B) to GPIO 19
+  - US3 (Downstream A) to GPIO 21
+  - US4 (Downstream B) to GPIO 22
 
 ### 5.4 Beam geometry
 Each pair has Beam A and Beam B spaced **3 cm apart** along the direction of vessel travel. The 3 cm value is in `system_types.h` as `ULTRASONIC_BEAM_SPACING_CM = 3`.

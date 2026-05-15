@@ -40,17 +40,6 @@ static void parse_line(const char* line, size_t len) {
         CLR_FAULT(g_status.fault_flags, FAULT_VISION_LINK_LOST);
         xSemaphoreGive(g_status_mutex);
     }
-
-    // Edge-trigger: rising vehicle_present -> EVT_VEHICLE_DETECTED
-    static uint8_t s_prev_v = 0;
-    if (s_vs.vehicle_present && !s_prev_v) {
-        SystemEvent_t e = EVT_VEHICLE_DETECTED;
-        xQueueSend(g_event_queue, &e, 0);
-    } else if (!s_vs.vehicle_present && s_prev_v) {
-        SystemEvent_t e = EVT_VEHICLE_CLEARED;
-        xQueueSend(g_event_queue, &e, 0);
-    }
-    s_prev_v = s_vs.vehicle_present;
 }
 
 void vision_link_init(void) {

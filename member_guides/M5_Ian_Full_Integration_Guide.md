@@ -35,7 +35,9 @@ Do not connect everything at once. Build and test sequentially:
 1. **Power & Brains:** Connect the 5V rail to the Main ESP32. Flash firmware. Ensure it prints over Serial.
 2. **HMI:** Connect the TFT. Ensure the FSM loop is running and updating the screen.
 3. **Safety Loop:** Connect the E-stop logic pin. Verify hitting it triggers the Red Fault screen.
-4. **Peripherals:** Connect the Shift Register and Servos. Trigger a state change via HMI and verify lights/barriers actuate.
+4. **Peripherals:** Connect the Shift Register and Servos.
+   - **Servo Barriers SG90 Wiring:** Power: VCC (Red) to dedicated 5V source (NOT ESP32 3.3V), GND (Brown/Black) to common GND. Signal: PWM (Orange/Yellow) of BOTH servos connected to ESP32 GPIO 3.
+   - Trigger a state change via HMI and verify lights/barriers actuate.
 5. **Sensors:** Connect the 4x HC-SR04s using the **Shared Trigger Design** (all 4 TRIG pins tied to GPIO 5). Verify echo voltage dividers are outputting exactly 3.3V on a multimeter before connecting to the ESP32.
 6. **Vision:** Power the ESP32-CAM. Connect the UART crossover. Verify JSON heartbeats on the Telemetry page.
 7. **Position Encoding:** Wire a 10k potentiometer to `GPIO 35` to simulate the bridge's physical position encoder.

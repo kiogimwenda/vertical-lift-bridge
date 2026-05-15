@@ -106,6 +106,7 @@ void fsm_engine_handle(SystemEvent_t evt) {
         // s_cw_ok is the file-static reset by enter_state() above.
         if (evt == EVT_CW_READY) s_cw_ok = true;
         if (evt == EVT_BARRIER_CLOSED || evt == EVT_CW_READY || evt == EVT_TICK_100MS) {
+            // Check if mechanical requirements are met AND the deck is clear of cars
             if (fsm_guard_road_clear() && s_cw_ok) {
                 enter_state(STATE_RAISING);   // s_cw_ok cleared on next ROAD_CLEARING entry
             }
