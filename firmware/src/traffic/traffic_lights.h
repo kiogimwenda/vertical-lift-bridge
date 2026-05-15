@@ -16,3 +16,4 @@ typedef enum : uint8_t {
 void traffic_lights_init(void);
 void traffic_lights_tick(void);                       // Called at 10 Hz for blink
 void traffic_lights_set_road  (TrafficLightState_t s);
+void traffic_lights_test(uint8_t bits);

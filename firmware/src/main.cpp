@@ -181,6 +181,16 @@ static void task_fsm(void* arg) {
         // --- DEV-ONLY: manual serial event injection ---
         while (Serial.available()) {
             char c = Serial.read();
+            if (c >= '0' && c <= '4') {
+                uint8_t raw = 0;
+                if (c == '1') raw = 0x01;
+                else if (c == '2') raw = 0x02;
+                else if (c == '3') raw = 0x04;
+                else if (c == '4') raw = 0xFF;
+                traffic_lights_test(raw);
+                continue;
+            }
+
             SystemEvent_t e = EVT_NONE;
             if      (c == 'v') e = EVT_VEHICLE_DETECTED;
             else if (c == 'c') e = EVT_VEHICLE_CLEARED;
@@ -262,7 +272,7 @@ static void task_safety(void* arg) {
         safety_watchdog_check_all();
 
         // Operator panel scan: 20 Hz is plenty for a 5-button resistor ladder.
-        input_tick();
+        // input_tick(); // DEV MOCK: disabled because GPIO 34 is floating
 
         // Traffic lights + buzzer: drive at 10 Hz (every 2nd safety tick).
         // Lower than safety so blink phase is human-pleasant; higher than

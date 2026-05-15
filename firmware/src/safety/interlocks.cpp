@@ -32,7 +32,8 @@ static void set_servo_angle(uint8_t angle) {
 }
 
 static volatile bool s_estop_now = false;
-static uint8_t s_target_angle = BARRIER_DOWN_ANGLE;
+static int s_current_angle = 90; // Defaulting to 90 assuming BARRIER_UP_ANGLE or similar
+static int s_target_angle = 90;
 static uint32_t s_barrier_started_ms = 0;
 static bool     s_barrier_done_prev = true;   // edge tracker for FSM events
 
@@ -52,6 +53,7 @@ void interlocks_init(void) {
     ledcAttachPin(PIN_SERVO_L, LEDC_SERVO_LEFT_CH);
     
     set_servo_angle(BARRIER_UP_ANGLE);
+    s_current_angle = BARRIER_UP_ANGLE;
     s_target_angle = BARRIER_UP_ANGLE;
 
     Serial.println("[ilk] init OK (relay off until first OK eval)");
@@ -61,11 +63,13 @@ void interlocks_request_barriers(uint8_t angle) {
     s_target_angle       = angle;
     s_barrier_started_ms = millis();
     s_barrier_done_prev  = false;   // arm rising-edge detection
-    set_servo_angle(angle);
+    // Note: set_servo_angle is now handled smoothly inside interlocks_evaluate
 }
 
 void interlocks_force_safe(void) {
     digitalWrite(PIN_RELAY, LOW);   // Cut motor power
+    s_target_angle = BARRIER_DOWN_ANGLE;
+    s_current_angle = BARRIER_DOWN_ANGLE; // Snap immediately for safety
     set_servo_angle(BARRIER_DOWN_ANGLE);
 }
 
@@ -92,23 +96,24 @@ void interlocks_evaluate(void) {
     if (flags != 0) relay_should_be_on = false;
     digitalWrite(PIN_RELAY, relay_should_be_on ? HIGH : LOW);
 
-    // Barrier reach detection — open-loop time estimate.
-    //   "reached"  : SG90 needs about 0.6 s for 90°. We use 800 ms to leave
-    //                margin for low-voltage operation and worn servos.
-    //
-    // Note (v2.2): without a feedback channel from the servo we cannot
-    // distinguish a physically-jammed barrier from a successful move.
-    // FAULT_BARRIER_TIMEOUT is therefore reserved-but-never-set in
-    // v2.2; the v3 board can wire a microswitch under each barrier arm
-    // for true feedback. The flag is left in the enum for that future.
-    const uint32_t BARRIER_REACHED_MS = 800;
-    uint32_t barrier_age = millis() - s_barrier_started_ms;
-    bool barrier_done = (barrier_age > BARRIER_REACHED_MS);
+    // Smooth servo sweeping logic (approx 40 deg/sec since evaluate runs at 20Hz)
+    if (s_current_angle < s_target_angle) {
+        s_current_angle += 2;
+        if (s_current_angle > s_target_angle) s_current_angle = s_target_angle;
+        set_servo_angle(s_current_angle);
+    } else if (s_current_angle > s_target_angle) {
+        s_current_angle -= 2;
+        if (s_current_angle < s_target_angle) s_current_angle = s_target_angle;
+        set_servo_angle(s_current_angle);
+    }
+
+    // Barrier reach detection based on current position hitting target
+    bool barrier_done = (s_current_angle == s_target_angle);
 
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.estop_active                 = estop;
-        g_status.barrier_left_angle           = s_target_angle;
-        g_status.barrier_right_angle          = s_target_angle;
+        g_status.barrier_left_angle           = s_current_angle;
+        g_status.barrier_right_angle          = s_current_angle;
         g_status.barrier_left_target_reached  = barrier_done;
         g_status.barrier_right_target_reached = barrier_done;
         xSemaphoreGive(g_status_mutex);

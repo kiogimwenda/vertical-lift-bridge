@@ -131,6 +131,8 @@ void fsm_engine_handle(SystemEvent_t evt) {
         // self-driving without requiring an operator press.
         if (evt == EVT_OPERATOR_LOWER) {
             enter_state(STATE_LOWERING);
+        } else if (evt == EVT_OPERATOR_RAISE) {
+            enter_state(STATE_RAISING);
         } else if (evt == EVT_TICK_100MS &&
                    fsm_engine_state_age_ms() >= HOLD_TIMEOUT_MS) {
             enter_state(STATE_LOWERING);

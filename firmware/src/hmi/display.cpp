@@ -70,6 +70,7 @@ static lv_obj_t *pg_home, *pg_ops, *pg_vision, *pg_cw, *pg_settings;
 static lv_obj_t *header, *lbl_state, *lbl_pos, *bar_pos;
 static lv_obj_t *lbl_mot_stat; // Separate label for motor status to handle color properly
 static lv_obj_t *led_road_r, *led_road_y, *led_road_g;
+static lv_obj_t *led_us, *led_ds;
 static lv_obj_t *meter_motor;
 
 static lv_obj_t *radar_bg;
@@ -140,17 +141,18 @@ static void header_click_cb(lv_event_t * e) {
 }
 
 static void build_home(lv_obj_t *parent) {
+    // --- Left Column: Deck Height ---
     lv_obj_t *card = lv_obj_create(parent);
-    lv_obj_set_size(card, 140, 150);
+    lv_obj_set_size(card, 100, 150);
     lv_obj_align(card, LV_ALIGN_LEFT_MID, 5, -10);
     lv_obj_add_style(card, &style_card, 0);
 
     lv_obj_t *lbl = lv_label_create(card);
-    lv_label_set_text(lbl, "DECK HEIGHT");
+    lv_label_set_text(lbl, "DECK");
     lv_obj_align(lbl, LV_ALIGN_TOP_MID, 0, 0);
 
     bar_pos = lv_bar_create(card);
-    lv_obj_set_size(bar_pos, 25, 90);
+    lv_obj_set_size(bar_pos, 20, 90);
     lv_obj_align(bar_pos, LV_ALIGN_CENTER, 0, 5);
     lv_bar_set_range(bar_pos, 0, DECK_HEIGHT_MAX_MM);
     lv_obj_set_style_bg_color(bar_pos, lv_palette_main(LV_PALETTE_CYAN), LV_PART_INDICATOR);
@@ -158,13 +160,44 @@ static void build_home(lv_obj_t *parent) {
     lbl_pos = lv_label_create(card);
     lv_obj_align(lbl_pos, LV_ALIGN_BOTTOM_MID, 0, 0);
 
+    // --- Middle Column: Marine Sensors ---
+    lv_obj_t *card_mid = lv_obj_create(parent);
+    lv_obj_set_size(card_mid, 90, 150);
+    lv_obj_align(card_mid, LV_ALIGN_CENTER, 0, -10);
+    lv_obj_add_style(card_mid, &style_card, 0);
+
+    lv_obj_t *lbl_mid = lv_label_create(card_mid);
+    lv_label_set_text(lbl_mid, "MARINE");
+    lv_obj_align(lbl_mid, LV_ALIGN_TOP_MID, 0, 0);
+
+    lv_obj_t *lbl_us = lv_label_create(card_mid);
+    lv_label_set_text(lbl_us, "US");
+    lv_obj_align(lbl_us, LV_ALIGN_CENTER, 0, -35);
+
+    led_us = lv_led_create(card_mid);
+    lv_obj_set_size(led_us, 16, 16);
+    lv_obj_align(led_us, LV_ALIGN_CENTER, 0, -15);
+    lv_led_set_color(led_us, lv_palette_main(LV_PALETTE_GREEN));
+    lv_led_off(led_us);
+
+    lv_obj_t *lbl_ds = lv_label_create(card_mid);
+    lv_label_set_text(lbl_ds, "DS");
+    lv_obj_align(lbl_ds, LV_ALIGN_CENTER, 0, 15);
+
+    led_ds = lv_led_create(card_mid);
+    lv_obj_set_size(led_ds, 16, 16);
+    lv_obj_align(led_ds, LV_ALIGN_CENTER, 0, 35);
+    lv_led_set_color(led_ds, lv_palette_main(LV_PALETTE_GREEN));
+    lv_led_off(led_ds);
+
+    // --- Right Column: Traffic Lights ---
     lv_obj_t *card_lights = lv_obj_create(parent);
-    lv_obj_set_size(card_lights, 140, 150);
+    lv_obj_set_size(card_lights, 100, 150);
     lv_obj_align(card_lights, LV_ALIGN_RIGHT_MID, -5, -10);
     lv_obj_add_style(card_lights, &style_card, 0);
 
     lv_obj_t *lbl2 = lv_label_create(card_lights);
-    lv_label_set_text(lbl2, "ROAD TRAFFIC");
+    lv_label_set_text(lbl2, "TRAFFIC");
     lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, 0);
 
     led_road_g = lv_led_create(card_lights);
@@ -449,6 +482,12 @@ static void refresh_active(void) {
     if(s_local.state == STATE_IDLE) lv_led_on(led_road_g);
     else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
     else lv_led_on(led_road_r);
+
+    if (s_local.ultrasonic.upstream_direction == DIR_APPROACHING) lv_led_on(led_us);
+    else lv_led_off(led_us);
+
+    if (s_local.ultrasonic.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
+    else lv_led_off(led_ds);
 
     if(s_local.vision.vehicle_present) {
         lv_obj_remove_flag(target_box, LV_OBJ_FLAG_HIDDEN);
