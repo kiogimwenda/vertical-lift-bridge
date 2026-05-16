@@ -483,10 +483,10 @@ static void refresh_active(void) {
     else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
     else lv_led_on(led_road_r);
 
-    if (s_local.ultrasonic.upstream_direction == DIR_APPROACHING) lv_led_on(led_us);
+    if (s_local.laser.upstream_direction == DIR_APPROACHING) lv_led_on(led_us);
     else lv_led_off(led_us);
 
-    if (s_local.ultrasonic.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
+    if (s_local.laser.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
     else lv_led_off(led_ds);
 
     if(s_local.vision.vehicle_present) {

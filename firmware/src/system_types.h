@@ -31,7 +31,7 @@ typedef enum : uint8_t {
 // ----------------------------------------------------------------------------
 typedef enum : uint8_t {
     EVT_NONE = 0,
-    EVT_VEHICLE_DETECTED,     // Vision/ultrasonic confirms approach
+    EVT_VEHICLE_DETECTED,     // Vision/laser confirms approach
     EVT_VEHICLE_CLEARED,      // Vehicle past barrier zone
     EVT_BARRIER_CLOSED,       // Both servo barriers down
     EVT_BARRIER_OPEN,         // Both servo barriers up
@@ -63,7 +63,7 @@ typedef enum : uint32_t {
     FAULT_POS_OUT_OF_RANGE  = 1u << 3,   // Position pot read outside 0..DECK_HEIGHT_MAX_MM band
     FAULT_WATCHDOG          = 1u << 4,   // Software watchdog timeout
     FAULT_VISION_LINK_LOST  = 1u << 5,   // No JSON from ESP32-CAM > 2s
-    FAULT_ULTRASONIC_FAIL   = 1u << 6,   // All four ultrasonics timed out
+    FAULT_LASER_FAIL        = 1u << 6,   // Laser fail flag
     FAULT_TFT_INIT_FAIL     = 1u << 7,   // Display did not init
     FAULT_TOUCH_INIT_FAIL   = 1u << 8,   // XPT2046 did not init
     FAULT_BARRIER_TIMEOUT   = 1u << 9,   // RESERVED v2.2 — open-loop SG90 has no feedback (see known_limitations.md L7). Wired in v3 with arm microswitches.
@@ -106,10 +106,10 @@ typedef struct {
 } VisionStatus_t;
 
 // ----------------------------------------------------------------------------
-// Ultrasonic quad-sensor direction detection.
-// Two pairs (upstream US1+US2, downstream US3+US4), each with beams A and B
+// Laser Break-Beam quad-sensor direction detection.
+// Two pairs (upstream LDR1+LDR2, downstream LDR3+LDR4), each with beams A and B
 // spaced 3 cm apart. Beam-arrival order within a pair reveals vessel direction.
-// Owner: M3 Cindy (sensors/ultrasonic.cpp).
+// Owner: M3 Cindy (sensors/laser.cpp).
 // ----------------------------------------------------------------------------
 typedef enum : uint8_t {
     DIR_NONE = 0,
@@ -119,22 +119,18 @@ typedef enum : uint8_t {
 } VehicleDirection_t;
 
 typedef struct {
-    // Upstream pair (US1 = Beam A, US2 = Beam B)
-    uint16_t           distance_us1_cm;   // 0..400, 0xFFFF = no echo
-    uint16_t           distance_us2_cm;
-    bool               upstream_blocked;  // Either US1 or US2 within range
+    // Upstream pair (LDR1 = Beam A, LDR2 = Beam B)
+    bool               upstream_blocked;  // Either LDR1 or LDR2 blocked
     VehicleDirection_t upstream_direction;
 
-    // Downstream pair (US3 = Beam A, US4 = Beam B)
-    uint16_t           distance_us3_cm;
-    uint16_t           distance_us4_cm;
+    // Downstream pair (LDR3 = Beam A, LDR4 = Beam B)
     bool               downstream_blocked;
     VehicleDirection_t downstream_direction;
 
     // Combined decision
     bool               vessel_approaching; // true if either side says APPROACHING
     uint32_t           last_update_ms;
-} UltrasonicStatus_t;
+} LaserStatus_t;
 
 // ----------------------------------------------------------------------------
 // Simulated dynamic counterweight system.
@@ -161,7 +157,7 @@ typedef struct {
 // SharedStatus — single struct guarded by a mutex.
 // All tasks read/write through xSemaphoreTake(g_status_mutex, ...).
 // Producers: motor (position; current is always 0 in v2.2), sensors
-//            (ultrasonic), vision, counterweight (sim), interlocks, FSM.
+//            (laser), vision, counterweight (sim), interlocks, FSM.
 // Consumer: HMI (display + telemetry), safety (fault evaluation).
 // ----------------------------------------------------------------------------
 typedef struct {
@@ -188,7 +184,7 @@ typedef struct {
     uint8_t         lights_road;            // Bitfield: bit0=R, bit1=Y, bit2=G
 
     // Sensing
-    UltrasonicStatus_t ultrasonic;
+    LaserStatus_t   laser;
     VisionStatus_t  vision;
 
     // Simulated counterweight
@@ -231,8 +227,7 @@ typedef struct {
 #define BARRIER_UP_ANGLE            90
 #define BARRIER_TIMEOUT_MS          1500
 #define HOLD_TIMEOUT_MS             8000     // Raised-hold for boat passage
-#define ULTRASONIC_TRIGGER_CM       80
-#define ULTRASONIC_BEAM_SPACING_CM  3        // Gap between Beam A and B within each pair
+#define LASER_BEAM_SPACING_CM       3        // Gap between Beam A and B within each pair
 // Simulated dynamic counterweight tunables
 #define CW_TANK_CAPACITY_ML        150.0f   // Max tank capacity (ml)
 #define CW_SIM_FILL_RATE_ML_PER_S  30.0f    // Simulated pump fill rate

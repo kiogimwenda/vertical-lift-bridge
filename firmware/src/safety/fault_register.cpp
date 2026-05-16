@@ -86,7 +86,7 @@ const char* fault_register_first_name(uint32_t flags) {
     if (flags & FAULT_POS_OUT_OF_RANGE) return "pos-range";
     if (flags & FAULT_WATCHDOG)         return "watchdog";
     if (flags & FAULT_VISION_LINK_LOST) return "vision-lost";
-    if (flags & FAULT_ULTRASONIC_FAIL)  return "us-fail";
+    if (flags & FAULT_LASER_FAIL)       return "laser-fail";
     if (flags & FAULT_TFT_INIT_FAIL)    return "tft-init";
     if (flags & FAULT_TOUCH_INIT_FAIL)  return "touch-init";
     if (flags & FAULT_BARRIER_TIMEOUT)  return "barrier-to";

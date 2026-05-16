@@ -1,7 +1,7 @@
 // pin_config.h  ::  vertical-lift-bridge :: GPIO assignments
 // SINGLE SOURCE OF TRUTH. 
 // v3.0 — May 2026. Major refactor to resolve all L4/L8 pin conflicts.
-// Shared US trigger enables quad-ultrasonic setup without sacrificing pins.
+// Shared LDR input enables quad-laser setup without sacrificing pins.
 // Input-only pins perfectly utilized for safety and ADCs.
 
 #pragma once
@@ -28,12 +28,11 @@
 #define PIN_TOUCH_CS         33
 #define PIN_TOUCH_IRQ        -1     // SPI Polling
 
-// ====================== ULTRASONICS (HC-SR04 ×4) ====================
-#define PIN_US_TRIG           5     // Shared trigger for all 4 sensors
-#define PIN_US1_ECHO         18     // Upstream A
-#define PIN_US2_ECHO         19     // Upstream B
-#define PIN_US3_ECHO         21     // Downstream A
-#define PIN_US4_ECHO         22     // Downstream B
+// ====================== LASER BREAK-BEAM (LDR ×4) ====================
+#define PIN_LDR1_IN          18     // Upstream A
+#define PIN_LDR2_IN          19     // Upstream B
+#define PIN_LDR3_IN          21     // Downstream A
+#define PIN_LDR4_IN          22     // Downstream B
 
 // ====================== LIMIT SWITCHES ==============================
 #define PIN_LIMIT_ANYHIT     39     // input-only

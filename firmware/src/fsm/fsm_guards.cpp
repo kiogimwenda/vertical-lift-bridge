@@ -20,13 +20,13 @@ bool fsm_guard_init_complete(void) {
     return ok;
 }
 
-// Vehicle confirmed by EITHER vision OR ultrasonic, no faults, no e-stop.
+// Vehicle confirmed by EITHER vision OR laser, no faults, no e-stop.
 bool fsm_guard_can_clear_road(void) {
     bool ok = false;
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
         // Architecture Correction: Vision detects cars ON the bridge, not marine vessels.
-        // Only ultrasonic (or manual operator) triggers the marine clearing sequence.
-        bool sensor_ok = g_status.ultrasonic.vessel_approaching;
+        // Only laser (or manual operator) triggers the marine clearing sequence.
+        bool sensor_ok = g_status.laser.vessel_approaching;
         ok = sensor_ok && !ANY_FAULT(g_status.fault_flags) && !g_status.estop_active;
         xSemaphoreGive(g_status_mutex);
     }

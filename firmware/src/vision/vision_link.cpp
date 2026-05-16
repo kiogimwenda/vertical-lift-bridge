@@ -40,6 +40,12 @@ static void parse_line(const char* line, size_t len) {
         CLR_FAULT(g_status.fault_flags, FAULT_VISION_LINK_LOST);
         xSemaphoreGive(g_status_mutex);
     }
+
+    static uint32_t last_print = 0;
+    if (millis() - last_print > 1000) {
+        last_print = millis();
+        Serial.printf("[vision] Rx: v=%d c=%d bbox=(%d,%d %dx%d)\n", s_vs.vehicle_present, s_vs.confidence, s_vs.bbox_x, s_vs.bbox_y, s_vs.bbox_w, s_vs.bbox_h);
+    }
 }
 
 void vision_link_init(void) {
@@ -55,6 +61,14 @@ void vision_link_tick(void) {
     while (s_uart.available() && n++ < 200) {
         int b = s_uart.read();
         if (b < 0) break;
+        
+        // DEV MOCK: RAW BYTE LOGGER
+        static uint32_t last_raw_print = 0;
+        if (millis() - last_raw_print > 500) {
+            last_raw_print = millis();
+            Serial.printf("[vision] RAW RX: %c (0x%02X)\n", (char)b, b);
+        }
+
         if (b == '\n' || b == '\r') {
             if (s_rx_len > 0) {
                 s_rx[s_rx_len] = 0;

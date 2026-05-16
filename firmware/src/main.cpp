@@ -16,7 +16,7 @@
 // Module headers
 #include "fsm/fsm_engine.h"
 #include "motor/motor_driver.h"
-#include "sensors/ultrasonic.h"
+#include "sensors/laser.h"
 #include "vision/vision_link.h"
 #include "traffic/traffic_lights.h"
 #include "traffic/buzzer.h"
@@ -125,7 +125,7 @@ void setup() {
 
     // -- Peripherals (all called from Core 0) ----------------------------
     motor_driver_init();
-    sensors_ultrasonic_init();
+    sensors_laser_init();
     vision_link_init();
     traffic_lights_init();
     buzzer_init();
@@ -239,12 +239,12 @@ static void task_motor(void* arg) {
 }
 
 // ===========================================================================
-// task_sensors — HC-SR04 dual-beam ranging at 20 Hz.
+// task_sensors — Laser break-beam ranging at 20 Hz.
 // ===========================================================================
 static void task_sensors(void* arg) {
     TickType_t last = xTaskGetTickCount();
     for (;;) {
-        sensors_ultrasonic_tick();
+        sensors_laser_tick();
         safety_watchdog_kick_sensors();
         vTaskDelayUntil(&last, pdMS_TO_TICKS(50));   // 20 Hz
     }
