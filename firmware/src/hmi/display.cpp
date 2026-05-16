@@ -34,10 +34,7 @@ static SemaphoreHandle_t s_lvgl_mutex = nullptr;
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
     uint32_t w = lv_area_get_width(area);
     uint32_t h = lv_area_get_height(area);
-    s_tft.startWrite();
-    s_tft.setAddrWindow(area->x1, area->y1, w, h);
-    s_tft.pushPixelsDMA((uint16_t*)px, w * h);
-    s_tft.endWrite();
+    s_tft.pushImage(area->x1, area->y1, w, h, (uint16_t*)px);
     lv_display_flush_ready(disp);
 }
 
