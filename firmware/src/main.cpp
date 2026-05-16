@@ -17,7 +17,6 @@
 #include "fsm/fsm_engine.h"
 #include "motor/motor_driver.h"
 #include "sensors/laser.h"
-#include "vision/vision_link.h"
 #include "traffic/traffic_lights.h"
 #include "traffic/buzzer.h"
 #include "hmi/display.h"
@@ -44,7 +43,6 @@ QueueHandle_t       g_hmi_cmd_queue     = nullptr;
 static TaskHandle_t h_fsm           = nullptr;
 static TaskHandle_t h_motor         = nullptr;
 static TaskHandle_t h_sensors       = nullptr;
-static TaskHandle_t h_vision        = nullptr;
 static TaskHandle_t h_safety        = nullptr;
 static TaskHandle_t h_hmi           = nullptr;
 static TaskHandle_t h_telemetry     = nullptr;
@@ -56,7 +54,6 @@ static TaskHandle_t h_counterweight = nullptr;
 static constexpr uint32_t STK_FSM       = 4096;
 static constexpr uint32_t STK_MOTOR     = 3072;
 static constexpr uint32_t STK_SENSORS   = 3072;
-static constexpr uint32_t STK_VISION    = 4096;
 static constexpr uint32_t STK_SAFETY    = 3072;
 static constexpr uint32_t STK_HMI       = 8192;     // LVGL needs space
 static constexpr uint32_t STK_TELEM     = 2048;
@@ -69,7 +66,6 @@ static constexpr UBaseType_t PRI_SAFETY     = 5;
 static constexpr UBaseType_t PRI_FSM        = 4;
 static constexpr UBaseType_t PRI_MOTOR      = 4;
 static constexpr UBaseType_t PRI_SENSORS    = 3;
-static constexpr UBaseType_t PRI_VISION     = 3;
 static constexpr UBaseType_t PRI_HMI        = 2;
 static constexpr UBaseType_t PRI_CW         = 2;
 static constexpr UBaseType_t PRI_TELEM      = 1;
@@ -86,7 +82,6 @@ static constexpr BaseType_t CORE_1 = 1;
 static void task_fsm        (void* arg);
 static void task_motor      (void* arg);
 static void task_sensors    (void* arg);
-static void task_vision     (void* arg);
 static void task_safety         (void* arg);
 static void task_counterweight  (void* arg);
 static void task_telemetry      (void* arg);
@@ -126,7 +121,6 @@ void setup() {
     // -- Peripherals (all called from Core 0) ----------------------------
     motor_driver_init();
     sensors_laser_init();
-    vision_link_init();
     traffic_lights_init();
     buzzer_init();
     counterweight_init();
@@ -144,8 +138,6 @@ void setup() {
                             nullptr, PRI_MOTOR,  &h_motor,     CORE_0);
     xTaskCreatePinnedToCore(task_sensors,   "sensors",  STK_SENSORS,
                             nullptr, PRI_SENSORS, &h_sensors,  CORE_0);
-    xTaskCreatePinnedToCore(task_vision,    "vision",   STK_VISION,
-                            nullptr, PRI_VISION, &h_vision,    CORE_0);
     xTaskCreatePinnedToCore(task_counterweight, "cw",    STK_CW,
                             nullptr, PRI_CW,     &h_counterweight, CORE_0);
     xTaskCreatePinnedToCore(task_telemetry, "telem",    STK_TELEM,
@@ -247,16 +239,6 @@ static void task_sensors(void* arg) {
         sensors_laser_tick();
         safety_watchdog_kick_sensors();
         vTaskDelayUntil(&last, pdMS_TO_TICKS(50));   // 20 Hz
-    }
-}
-
-// ===========================================================================
-// task_vision — UART2 RX from ESP32-CAM, parse JSON, update VisionStatus.
-// ===========================================================================
-static void task_vision(void* arg) {
-    for (;;) {
-        vision_link_tick();    // Blocks up to 50 ms inside on UART
-        safety_watchdog_kick_vision();
     }
 }
 

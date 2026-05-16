@@ -93,19 +93,6 @@ typedef struct {
 } MotorCommand_t;
 
 // ----------------------------------------------------------------------------
-// Vehicle detection result — from ESP32-CAM via UART2 JSON.
-// Updated by vision_link task; consumed by FSM.
-// ----------------------------------------------------------------------------
-typedef struct {
-    bool      vehicle_present;
-    uint8_t   confidence;     // 0..100 (frame-diff score)
-    uint32_t  last_seen_ms;   // millis() at last detection
-    uint16_t  bbox_x, bbox_y; // Optional bounding box (top-left)
-    uint16_t  bbox_w, bbox_h;
-    uint8_t   link_ok;        // 1 if heartbeat fresh, 0 if lost
-} VisionStatus_t;
-
-// ----------------------------------------------------------------------------
 // Laser Break-Beam quad-sensor direction detection.
 // Two pairs (upstream LDR1+LDR2, downstream LDR3+LDR4), each with beams A and B
 // spaced 3 cm apart. Beam-arrival order within a pair reveals vessel direction.
@@ -185,7 +172,6 @@ typedef struct {
 
     // Sensing
     LaserStatus_t   laser;
-    VisionStatus_t  vision;
 
     // Simulated counterweight
     CounterweightStatus_t counterweight;

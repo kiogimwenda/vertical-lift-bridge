@@ -66,17 +66,13 @@ static void g_status_snapshot(void) {
 
 // --- UI Components ---
 static lv_obj_t *tv;
-static lv_obj_t *pg_home, *pg_ops, *pg_vision, *pg_cw, *pg_settings;
+static lv_obj_t *pg_home, *pg_ops, *pg_cw, *pg_settings;
 static lv_obj_t *header, *lbl_state, *lbl_pos, *bar_pos;
 static lv_obj_t *lbl_mot_stat; // Separate label for motor status to handle color properly
 static lv_obj_t *led_road_r, *led_road_y, *led_road_g;
 static lv_obj_t *led_us, *led_ds;
+static lv_obj_t *lbl_marine_header;
 static lv_obj_t *meter_motor;
-
-static lv_obj_t *radar_bg;
-static lv_obj_t *target_box;
-static lv_obj_t *bar_confidence;
-static lv_obj_t *lbl_target;
 
 static lv_obj_t *bar_cw_l, *bar_cw_r;
 static lv_obj_t *lbl_cw_l_stat, *lbl_cw_r_stat;
@@ -256,31 +252,6 @@ static void build_ops(lv_obj_t *parent) {
     lv_obj_set_style_arc_color(meter_motor, lv_palette_main(LV_PALETTE_CYAN), LV_PART_INDICATOR);
 }
 
-static void build_vision(lv_obj_t *parent) {
-    radar_bg = lv_obj_create(parent);
-    lv_obj_set_size(radar_bg, 200, 120);
-    lv_obj_align(radar_bg, LV_ALIGN_TOP_MID, 0, 0);
-    lv_obj_set_style_bg_color(radar_bg, lv_palette_darken(LV_PALETTE_BLUE_GREY, 4), 0);
-    
-    target_box = lv_obj_create(radar_bg);
-    lv_obj_set_size(target_box, 40, 40);
-    lv_obj_align(target_box, LV_ALIGN_CENTER, 0, 0);
-    lv_obj_set_style_bg_opa(target_box, 0, 0);
-    lv_obj_set_style_border_width(target_box, 2, 0);
-    lv_obj_set_style_border_color(target_box, lv_palette_main(LV_PALETTE_RED), 0);
-    lv_obj_add_flag(target_box, LV_OBJ_FLAG_HIDDEN);
-
-    lbl_target = lv_label_create(parent);
-    lv_label_set_text(lbl_target, "SCANNING...");
-    lv_obj_align(lbl_target, LV_ALIGN_TOP_MID, 0, 125);
-    lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_GREY), 0);
-
-    bar_confidence = lv_bar_create(parent);
-    lv_obj_set_size(bar_confidence, 200, 15);
-    lv_obj_align(bar_confidence, LV_ALIGN_TOP_MID, 0, 145);
-    lv_bar_set_range(bar_confidence, 0, 100);
-}
-
 static void build_cw(lv_obj_t *parent) {
     lv_obj_t *card_l = lv_obj_create(parent);
     lv_obj_set_size(card_l, 130, 150);
@@ -423,13 +394,11 @@ static void ui_init() {
 
     pg_home = lv_tabview_add_tab(tv, "HOME");
     pg_ops = lv_tabview_add_tab(tv, "OPS");
-    pg_vision = lv_tabview_add_tab(tv, "VISION");
     pg_cw = lv_tabview_add_tab(tv, "CW");
     pg_settings = lv_tabview_add_tab(tv, "SET");
 
     build_home(pg_home);
     build_ops(pg_ops);
-    build_vision(pg_vision);
     build_cw(pg_cw);
     build_settings(pg_settings);
 }
@@ -489,17 +458,13 @@ static void refresh_active(void) {
     if (s_local.laser.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
     else lv_led_off(led_ds);
 
-    if(s_local.vision.vehicle_present) {
-        lv_obj_remove_flag(target_box, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(lbl_target, "TARGET ACQUIRED");
-        lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_RED), 0);
-        lv_obj_align(target_box, LV_ALIGN_CENTER, (rand()%10)-5, (rand()%10)-5);
+    if (s_local.laser.vessel_approaching) {
+        lv_label_set_text(lbl_marine_header, "VESSEL\nALERT!");
+        lv_obj_set_style_text_color(lbl_marine_header, lv_palette_main(LV_PALETTE_RED), 0);
     } else {
-        lv_obj_add_flag(target_box, LV_OBJ_FLAG_HIDDEN);
-        lv_label_set_text(lbl_target, "SCANNING...");
-        lv_obj_set_style_text_color(lbl_target, lv_palette_main(LV_PALETTE_GREY), 0);
+        lv_label_set_text(lbl_marine_header, "MARINE");
+        lv_obj_set_style_text_color(lbl_marine_header, lv_color_white(), 0); // Assuming white is default
     }
-    lv_bar_set_value(bar_confidence, s_local.vision.confidence, LV_ANIM_ON);
 
     lv_bar_set_value(bar_cw_l, (int)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
     lv_bar_set_value(bar_cw_r, (int)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);

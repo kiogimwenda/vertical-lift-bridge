@@ -11,6 +11,5 @@ void safety_watchdog_kick_main(void);
 void safety_watchdog_kick_fsm(void);
 void safety_watchdog_kick_motor(void);
 void safety_watchdog_kick_sensors(void);
-void safety_watchdog_kick_vision(void);
 
 void safety_watchdog_check_all(void);   // Called from task_safety

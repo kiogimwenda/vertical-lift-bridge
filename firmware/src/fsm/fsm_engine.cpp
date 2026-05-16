@@ -94,9 +94,7 @@ void fsm_engine_handle(SystemEvent_t evt) {
         break;
 
     case STATE_IDLE:
-        if (evt == EVT_VEHICLE_DETECTED && fsm_guard_can_clear_road()) {
-            enter_state(STATE_ROAD_CLEARING);
-        } else if (evt == EVT_OPERATOR_RAISE) {
+        if (evt == EVT_OPERATOR_RAISE) {
             enter_state(STATE_ROAD_CLEARING);
         }
         break;
@@ -106,7 +104,7 @@ void fsm_engine_handle(SystemEvent_t evt) {
         // s_cw_ok is the file-static reset by enter_state() above.
         if (evt == EVT_CW_READY) s_cw_ok = true;
         if (evt == EVT_BARRIER_CLOSED || evt == EVT_CW_READY || evt == EVT_TICK_100MS) {
-            // Check if mechanical requirements are met AND the deck is clear of cars
+            // Check if mechanical requirements are met
             if (fsm_guard_road_clear() && s_cw_ok) {
                 enter_state(STATE_RAISING);   // s_cw_ok cleared on next ROAD_CLEARING entry
             }
@@ -117,26 +115,15 @@ void fsm_engine_handle(SystemEvent_t evt) {
         if (evt == EVT_TOP_LIMIT_HIT) {
             enter_state(STATE_RAISED_HOLD);
         } else if (evt == EVT_OPERATOR_HOLD) {
-            // Mid-travel freeze: brake the motor and present the same
-            // recovery options as if we'd reached the top early. The
-            // existing RAISED_HOLD auto-timeout then either lowers the
-            // deck after HOLD_TIMEOUT_MS or yields to operator LOWER.
             enter_state(STATE_RAISED_HOLD);
         }
         break;
 
     case STATE_RAISED_HOLD:
-        // EVT_HOLD_TIMEOUT has no separate producer task — it is fired
-        // here from the periodic EVT_TICK_100MS when the state age
-        // exceeds HOLD_TIMEOUT_MS. This keeps the autonomous cycle
-        // self-driving without requiring an operator press.
         if (evt == EVT_OPERATOR_LOWER) {
             enter_state(STATE_LOWERING);
         } else if (evt == EVT_OPERATOR_RAISE) {
             enter_state(STATE_RAISING);
-        } else if (evt == EVT_TICK_100MS &&
-                   fsm_engine_state_age_ms() >= HOLD_TIMEOUT_MS) {
-            enter_state(STATE_LOWERING);
         }
         break;
 
