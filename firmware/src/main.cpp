@@ -170,39 +170,6 @@ static void task_fsm(void* arg) {
     SystemEvent_t evt;
     TickType_t last_tick = xTaskGetTickCount();
     for (;;) {
-        // --- DEV-ONLY: manual serial event injection ---
-        while (Serial.available()) {
-            char c = Serial.read();
-            if (c >= '0' && c <= '4') {
-                uint8_t raw = 0;
-                if (c == '1') raw = 0x01;
-                else if (c == '2') raw = 0x02;
-                else if (c == '3') raw = 0x04;
-                else if (c == '4') raw = 0xFF;
-                traffic_lights_test(raw);
-                continue;
-            }
-
-            SystemEvent_t e = EVT_NONE;
-            if      (c == 'v') e = EVT_VEHICLE_DETECTED;
-            else if (c == 'c') e = EVT_VEHICLE_CLEARED;
-            else if (c == 't') e = EVT_TOP_LIMIT_HIT;
-            else if (c == 'b') e = EVT_BOTTOM_LIMIT_HIT;
-            else if (c == 'r') e = EVT_OPERATOR_RAISE;
-            else if (c == 'l') e = EVT_OPERATOR_LOWER;
-            else if (c == 'B') e = EVT_BARRIER_CLOSED;
-            else if (c == 'O') e = EVT_BARRIER_OPEN;
-            else if (c == 'k') e = EVT_CW_READY;
-            else if (c == 'f') e = EVT_FAULT_RAISED;
-            else if (c == 'x') e = EVT_FAULT_CLEARED;
-            else if (c == 'E') e = EVT_ESTOP_PRESSED;
-            else if (c == 'R') e = EVT_ESTOP_RELEASED;
-            if (e != EVT_NONE) {
-                xQueueSend(g_event_queue, &e, 0);
-                Serial.printf("\n>> [MANUAL] INJECTED EVENT: %c\n", c);
-            }
-        }
-
         // Wait up to 100 ms for an event
         if (xQueueReceive(g_event_queue, &evt, pdMS_TO_TICKS(100)) == pdTRUE) {
             fsm_engine_handle(evt);
@@ -254,7 +221,7 @@ static void task_safety(void* arg) {
         safety_watchdog_check_all();
 
         // Operator panel scan: 20 Hz is plenty for a 5-button resistor ladder.
-        // input_tick(); // DEV MOCK: disabled because GPIO 34 is floating
+        input_tick();
 
         // Traffic lights + buzzer: drive at 10 Hz (every 2nd safety tick).
         // Lower than safety so blink phase is human-pleasant; higher than

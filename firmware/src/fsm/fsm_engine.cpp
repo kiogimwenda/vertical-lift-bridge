@@ -121,7 +121,9 @@ void fsm_engine_handle(SystemEvent_t evt) {
 
     case STATE_RAISED_HOLD:
         if (evt == EVT_OPERATOR_LOWER) {
-            enter_state(STATE_LOWERING);
+            if (fsm_guard_safe_to_lower()) {
+                enter_state(STATE_LOWERING);
+            }
         } else if (evt == EVT_OPERATOR_RAISE) {
             enter_state(STATE_RAISING);
         }

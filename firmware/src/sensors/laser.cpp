@@ -22,7 +22,7 @@
 static LaserStatus_t s_ls = {};
 
 // History ring for direction inference (5 samples per pair).
-#define DIR_HIST 5
+#define DIR_HIST 40
 static uint8_t s_hist_up_a[DIR_HIST]   = {0};
 static uint8_t s_hist_up_b[DIR_HIST]   = {0};
 static uint8_t s_hist_down_a[DIR_HIST] = {0};

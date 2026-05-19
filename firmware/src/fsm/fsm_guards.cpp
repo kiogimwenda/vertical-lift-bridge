@@ -31,6 +31,16 @@ bool fsm_guard_road_clear(void) {
     return ok;
 }
 
+// Safety guard: cannot lower bridge if a vessel is currently approaching
+bool fsm_guard_safe_to_lower(void) {
+    bool ok = false;
+    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
+        ok = !g_status.laser.vessel_approaching;
+        xSemaphoreGive(g_status_mutex);
+    }
+    return ok;
+}
+
 // Both barriers up.
 bool fsm_guard_road_opened(void) {
     bool ok = false;
