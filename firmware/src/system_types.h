@@ -194,8 +194,6 @@ typedef struct {
 
     // HMI
     uint8_t         hmi_active_screen;      // 0..4
-    uint8_t         hmi_brightness;         // 0..100
-    bool            auto_mode_active;       // Toggle for automated lifting logic
 } SharedStatus_t;
 
 // ----------------------------------------------------------------------------

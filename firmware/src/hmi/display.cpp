@@ -28,9 +28,6 @@ static uint8_t      s_buf2[TFT_W * LV_BUF_LINES * 2];
 
 static SemaphoreHandle_t s_lvgl_mutex = nullptr;
 
-#define LEDC_CH_BL  2
-#define LEDC_RES_BL 13
-
 static void lvgl_flush_cb(lv_display_t* disp, const lv_area_t* area, uint8_t* px) {
     uint32_t w = lv_area_get_width(area);
     uint32_t h = lv_area_get_height(area);
@@ -113,8 +110,13 @@ static void popup_timer_cb(lv_timer_t * t) {
 }
 
 static void header_click_cb(lv_event_t * e) {
+    g_status_snapshot();
     char buf[64];
-    sprintf(buf, "Instantaneous Motor Draw:\n%d mA", s_local.motor_current_ma);
+    // L293D module has no current-sense output, so motor_current_ma is always
+    // 0. Report deck height and commanded PWM duty instead — both are real.
+    sprintf(buf, "Deck Height: %d mm\nMotor PWM: %d%%",
+            s_local.deck_position_mm,
+            (s_local.motor_pwm_duty * 100) / MOTOR_PWM_MAX);
     
     lv_obj_t * mbox = lv_obj_create(lv_screen_active());
     lv_obj_set_size(mbox, 220, 100);
@@ -159,9 +161,12 @@ static void build_home(lv_obj_t *parent) {
     lv_obj_align(card_mid, LV_ALIGN_CENTER, 0, -10);
     lv_obj_add_style(card_mid, &style_card, 0);
 
-    lv_obj_t *lbl_mid = lv_label_create(card_mid);
-    lv_label_set_text(lbl_mid, "MARINE");
-    lv_obj_align(lbl_mid, LV_ALIGN_TOP_MID, 0, 0);
+    // NOTE: this label is the one refresh_active() flips to "VESSEL ALERT!".
+    // It MUST be stored in the file-scope lbl_marine_header or refresh_active()
+    // dereferences a null pointer the first time a vessel is detected.
+    lbl_marine_header = lv_label_create(card_mid);
+    lv_label_set_text(lbl_marine_header, "MARINE");
+    lv_obj_align(lbl_marine_header, LV_ALIGN_TOP_MID, 0, 0);
 
     lv_obj_t *lbl_us = lv_label_create(card_mid);
     lv_label_set_text(lbl_us, "US");
@@ -242,7 +247,7 @@ static void build_ops(lv_obj_t *parent) {
     lv_obj_align(meter_motor, LV_ALIGN_RIGHT_MID, -10, -10);
     lv_arc_set_rotation(meter_motor, 135);
     lv_arc_set_bg_angles(meter_motor, 0, 270);
-    lv_arc_set_range(meter_motor, 0, 2500);
+    lv_arc_set_range(meter_motor, 0, 100);   // shows commanded PWM duty (%)
     lv_obj_set_style_bg_color(meter_motor, lv_palette_main(LV_PALETTE_RED), LV_PART_KNOB);
     lv_obj_set_style_pad_all(meter_motor, 5, LV_PART_KNOB);
     lv_obj_clear_flag(meter_motor, LV_OBJ_FLAG_CLICKABLE);
@@ -289,7 +294,7 @@ static void build_cw(lv_obj_t *parent) {
 
 static void build_settings(lv_obj_t *parent) {
     lv_obj_t *card = lv_obj_create(parent);
-    lv_obj_set_size(card, 280, 150);
+    lv_obj_set_size(card, 280, 90);
     lv_obj_align(card, LV_ALIGN_TOP_MID, 0, 10);
     lv_obj_add_style(card, &style_card, 0);
 
@@ -297,28 +302,12 @@ static void build_settings(lv_obj_t *parent) {
     lv_label_set_text(lbl_title, "SYSTEM SETTINGS");
     lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, -5);
 
-    lv_obj_t *lbl_auto = lv_label_create(card);
-    lv_label_set_text(lbl_auto, "Auto Mode:");
-    lv_obj_align(lbl_auto, LV_ALIGN_LEFT_MID, 10, -35);
-
-    lv_obj_t *sw_auto = lv_switch_create(card);
-    lv_obj_align(sw_auto, LV_ALIGN_RIGHT_MID, -10, -35);
-    g_status_snapshot();
-    if(s_local.auto_mode_active) lv_obj_add_state(sw_auto, LV_STATE_CHECKED);
-    lv_obj_add_event_cb(sw_auto, [](lv_event_t *e){
-        lv_obj_t * sw = (lv_obj_t *)lv_event_get_target(e);
-        if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-            g_status.auto_mode_active = lv_obj_has_state(sw, LV_STATE_CHECKED);
-            xSemaphoreGive(g_status_mutex);
-        }
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
     lv_obj_t *lbl_theme = lv_label_create(card);
     lv_label_set_text(lbl_theme, "Dark Mode:");
-    lv_obj_align(lbl_theme, LV_ALIGN_LEFT_MID, 10, 0);
+    lv_obj_align(lbl_theme, LV_ALIGN_LEFT_MID, 10, 10);
 
     lv_obj_t *sw_theme = lv_switch_create(card);
-    lv_obj_align(sw_theme, LV_ALIGN_RIGHT_MID, -10, 0);
+    lv_obj_align(sw_theme, LV_ALIGN_RIGHT_MID, -10, 10);
     lv_obj_add_event_cb(sw_theme, [](lv_event_t *e){
         lv_obj_t * sw = (lv_obj_t *)lv_event_get_target(e);
         bool is_dark = lv_obj_has_state(sw, LV_STATE_CHECKED);
@@ -335,25 +324,6 @@ static void build_settings(lv_obj_t *parent) {
             lv_style_set_text_color(&style_btn_modern, lv_color_white());
         }
         lv_obj_report_style_change(&style_card);
-    }, LV_EVENT_VALUE_CHANGED, NULL);
-
-    lv_obj_t *lbl_br = lv_label_create(card);
-    lv_label_set_text(lbl_br, "HMI Brightness:");
-    lv_obj_align(lbl_br, LV_ALIGN_LEFT_MID, 10, 35);
-
-    lv_obj_t *slider_br = lv_slider_create(card);
-    lv_obj_set_size(slider_br, 100, 10);
-    lv_obj_align(slider_br, LV_ALIGN_RIGHT_MID, -10, 35);
-    lv_slider_set_range(slider_br, 10, 100);
-    lv_slider_set_value(slider_br, s_local.hmi_brightness, LV_ANIM_OFF);
-    lv_obj_add_event_cb(slider_br, [](lv_event_t *e) {
-        lv_obj_t * slider = (lv_obj_t *)lv_event_get_target(e);
-        uint8_t val = lv_slider_get_value(slider);
-        ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * val / 100);
-        if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
-            g_status.hmi_brightness = val;
-            xSemaphoreGive(g_status_mutex);
-        }
     }, LV_EVENT_VALUE_CHANGED, NULL);
 }
 
@@ -411,72 +381,120 @@ static void refresh_active(void) {
     else if(s_local.state == STATE_RAISED_HOLD) sys_color = lv_palette_main(LV_PALETTE_ORANGE);
     else if(s_local.state != STATE_IDLE) sys_color = lv_palette_main(LV_PALETTE_CYAN);
 
-    char buf_sys[64];
-    sprintf(buf_sys, "SYS: %s %s", state_names[s_local.state], s_local.auto_mode_active ? "[AUTO]" : "[MAN]");
-    lv_label_set_text(lbl_state, buf_sys);
-    lv_obj_set_style_text_color(lbl_state, sys_color, 0);
-
-    const char* mot_stat = "IDLE";
-    lv_color_t mot_color = lv_color_white();
-    if (s_local.motor_current_ma == 0) {
-        mot_stat = "IDLE";
-        mot_color = lv_color_white();
-    } else if (s_local.motor_current_ma < 1500) {
-        mot_stat = "OK";
-        mot_color = lv_palette_main(LV_PALETTE_GREEN);
-    } else if (s_local.motor_current_ma <= 1980) {
-        mot_stat = "WARN";
-        mot_color = lv_palette_main(LV_PALETTE_YELLOW);
-    } else {
-        mot_stat = "CRIT";
-        mot_color = (s_local.uptime_ms % 500 < 250) ? lv_palette_main(LV_PALETTE_RED) : lv_color_white();
+    static SystemState_t last_sys_state = STATE_COUNT;
+    if (s_local.state != last_sys_state) {
+        char buf_sys[64];
+        sprintf(buf_sys, "SYS: %s", state_names[s_local.state]);
+        lv_label_set_text(lbl_state, buf_sys);
+        lv_obj_set_style_text_color(lbl_state, sys_color, 0);
+        last_sys_state = s_local.state;
     }
 
-    char buf_mot[32];
-    sprintf(buf_mot, "MOT: %s", mot_stat);
-    lv_label_set_text(lbl_mot_stat, buf_mot);
-    lv_obj_set_style_text_color(lbl_mot_stat, mot_color, 0);
-
-    char buf_p[16];
-    sprintf(buf_p, "%d mm", s_local.deck_position_mm);
-    lv_label_set_text(lbl_pos, buf_p);
-    lv_bar_set_value(bar_pos, s_local.deck_position_mm, LV_ANIM_ON);
-
-    lv_arc_set_value(meter_motor, s_local.motor_current_ma);
-
-    lv_led_off(led_road_g); lv_led_off(led_road_y); lv_led_off(led_road_r);
-    if(s_local.state == STATE_IDLE) lv_led_on(led_road_g);
-    else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
-    else lv_led_on(led_road_r);
-
-    if (s_local.laser.upstream_direction == DIR_APPROACHING) lv_led_on(led_us);
-    else lv_led_off(led_us);
-
-    if (s_local.laser.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
-    else lv_led_off(led_ds);
-
-    if (s_local.laser.vessel_approaching) {
-        lv_label_set_text(lbl_marine_header, "VESSEL\nALERT!");
-        lv_obj_set_style_text_color(lbl_marine_header, lv_palette_main(LV_PALETTE_RED), 0);
-    } else {
-        lv_label_set_text(lbl_marine_header, "MARINE");
-        lv_obj_set_style_text_color(lbl_marine_header, lv_color_white(), 0); // Assuming white is default
+    // Motor status is derived from FSM state, not current. The L293D module
+    // has no current-sense output, so motor_current_ma is always 0 — keying
+    // the status off it would leave MOT permanently stuck on "IDLE". State +
+    // commanded duty are the truthful signals we have.
+    const char* mot_stat;
+    lv_color_t  mot_color;
+    switch (s_local.state) {
+    case STATE_RAISING:       mot_stat = "UP";   mot_color = lv_palette_main(LV_PALETTE_CYAN);   break;
+    case STATE_LOWERING:      mot_stat = "DOWN"; mot_color = lv_palette_main(LV_PALETTE_CYAN);   break;
+    case STATE_RAISED_HOLD:   mot_stat = "HOLD"; mot_color = lv_palette_main(LV_PALETTE_ORANGE); break;
+    case STATE_ROAD_CLEARING: mot_stat = "WAIT"; mot_color = lv_palette_main(LV_PALETTE_YELLOW); break;
+    case STATE_FAULT:
+    case STATE_ESTOP:         mot_stat = "STOP"; mot_color = lv_palette_main(LV_PALETTE_RED);    break;
+    default:                  mot_stat = "IDLE"; mot_color = lv_color_white();                   break;
     }
 
-    lv_bar_set_value(bar_cw_l, (int)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
-    lv_bar_set_value(bar_cw_r, (int)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);
+    // mot_stat always points at one of the string literals above, so a
+    // pointer compare is a valid (and cheap) change check.
+    static const char* last_mot_stat = nullptr;
+    if (mot_stat != last_mot_stat) {
+        char buf_mot[32];
+        sprintf(buf_mot, "MOT: %s", mot_stat);
+        lv_label_set_text(lbl_mot_stat, buf_mot);
+        lv_obj_set_style_text_color(lbl_mot_stat, mot_color, 0);
+        last_mot_stat = mot_stat;
+    }
 
-    char cw_stat_l[32];
-    if(s_local.counterweight.left.pump_active) sprintf(cw_stat_l, "PUMPING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
-    else if(s_local.counterweight.left.drain_open) sprintf(cw_stat_l, "DRAINING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
-    else sprintf(cw_stat_l, "IDLE\n%d ML", (int)s_local.counterweight.left.water_level_ml);
-    lv_label_set_text(lbl_cw_l_stat, cw_stat_l);
+    static int16_t last_pos = -1;
+    if (s_local.deck_position_mm != last_pos) {
+        char buf_p[16];
+        sprintf(buf_p, "%d mm", s_local.deck_position_mm);
+        lv_label_set_text(lbl_pos, buf_p);
+        lv_bar_set_value(bar_pos, s_local.deck_position_mm, LV_ANIM_ON);
+        last_pos = s_local.deck_position_mm;
+    }
 
-    char cw_stat_r[32];
-    if(s_local.counterweight.right.pump_active) sprintf(cw_stat_r, "PUMPING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
-    else if(s_local.counterweight.right.drain_open) sprintf(cw_stat_r, "DRAINING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
-    else sprintf(cw_stat_r, "IDLE\n%d ML", (int)s_local.counterweight.right.water_level_ml);
-    lv_label_set_text(lbl_cw_r_stat, cw_stat_r);
+    // Arc gauge tracks commanded PWM duty (0..100 %).
+    int16_t pwm_pct = (int16_t)((s_local.motor_pwm_duty * 100) / MOTOR_PWM_MAX);
+    static int16_t last_pwm_pct = -1;
+    if (pwm_pct != last_pwm_pct) {
+        lv_arc_set_value(meter_motor, pwm_pct);
+        last_pwm_pct = pwm_pct;
+    }
+
+    static SystemState_t last_road_state = STATE_COUNT;
+    if (s_local.state != last_road_state) {
+        lv_led_off(led_road_g); lv_led_off(led_road_y); lv_led_off(led_road_r);
+        if(s_local.state == STATE_IDLE) lv_led_on(led_road_g);
+        else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
+        else lv_led_on(led_road_r);
+        last_road_state = s_local.state;
+    }
+
+    static VehicleDirection_t last_us_dir = DIR_NONE;
+    if (s_local.laser.upstream_direction != last_us_dir) {
+        if (s_local.laser.upstream_direction == DIR_APPROACHING) lv_led_on(led_us);
+        else lv_led_off(led_us);
+        last_us_dir = s_local.laser.upstream_direction;
+    }
+
+    static VehicleDirection_t last_ds_dir = DIR_NONE;
+    if (s_local.laser.downstream_direction != last_ds_dir) {
+        if (s_local.laser.downstream_direction == DIR_APPROACHING) lv_led_on(led_ds);
+        else lv_led_off(led_ds);
+        last_ds_dir = s_local.laser.downstream_direction;
+    }
+
+    static bool last_vessel_alert = false;
+    static bool first_run_alert = true;
+    if (s_local.laser.vessel_approaching != last_vessel_alert || first_run_alert) {
+        if (s_local.laser.vessel_approaching) {
+            lv_label_set_text(lbl_marine_header, "VESSEL\nALERT!");
+            lv_obj_set_style_text_color(lbl_marine_header, lv_palette_main(LV_PALETTE_RED), 0);
+        } else {
+            lv_label_set_text(lbl_marine_header, "MARINE");
+            // Cards use a white background (style_card) under the default light
+            // theme, so the normal header must use dark text to stay visible —
+            // white-on-white made "MARINE" invisible whenever no vessel was near.
+            lv_obj_set_style_text_color(lbl_marine_header, lv_color_black(), 0);
+        }
+        last_vessel_alert = s_local.laser.vessel_approaching;
+        first_run_alert = false;
+    }
+
+    static float last_cw_l = -1;
+    static float last_cw_r = -1;
+    if (s_local.counterweight.left.water_level_ml != last_cw_l) {
+        lv_bar_set_value(bar_cw_l, (int)s_local.counterweight.left.water_level_ml, LV_ANIM_ON);
+        char cw_stat_l[32];
+        if(s_local.counterweight.left.pump_active) sprintf(cw_stat_l, "PUMPING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+        else if(s_local.counterweight.left.drain_open) sprintf(cw_stat_l, "DRAINING\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+        else sprintf(cw_stat_l, "IDLE\n%d ML", (int)s_local.counterweight.left.water_level_ml);
+        lv_label_set_text(lbl_cw_l_stat, cw_stat_l);
+        last_cw_l = s_local.counterweight.left.water_level_ml;
+    }
+    
+    if (s_local.counterweight.right.water_level_ml != last_cw_r) {
+        lv_bar_set_value(bar_cw_r, (int)s_local.counterweight.right.water_level_ml, LV_ANIM_ON);
+        char cw_stat_r[32];
+        if(s_local.counterweight.right.pump_active) sprintf(cw_stat_r, "PUMPING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+        else if(s_local.counterweight.right.drain_open) sprintf(cw_stat_r, "DRAINING\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+        else sprintf(cw_stat_r, "IDLE\n%d ML", (int)s_local.counterweight.right.water_level_ml);
+        lv_label_set_text(lbl_cw_r_stat, cw_stat_r);
+        last_cw_r = s_local.counterweight.right.water_level_ml;
+    }
 }
 
 // Hooks required by the rest of the FSM
@@ -493,27 +511,47 @@ bool hmi_cmd_post(HmiCmd_t cmd) {
     return xQueueSend(g_hmi_cmd_queue, &c, 0) == pdTRUE;
 }
 
+// ---------------------------------------------------------------------------
+// Operator-panel command handler. Runs inside task_hmi (Core 1) so it may
+// touch LVGL objects directly. The touchscreen buttons post FSM events
+// straight from btn_event_cb; the 5-button resistor-ladder panel (input.cpp)
+// routes its presses through g_hmi_cmd_queue into here.
+// ---------------------------------------------------------------------------
+static void handle_hmi_cmd(HmiCmd_t cmd) {
+    SystemEvent_t evt = EVT_NONE;
+    switch (cmd) {
+    case HMI_CMD_RAISE:       evt = EVT_OPERATOR_RAISE; break;
+    case HMI_CMD_LOWER:       evt = EVT_OPERATOR_LOWER; break;
+    case HMI_CMD_HOLD:        evt = EVT_OPERATOR_HOLD;  break;
+    case HMI_CMD_CLEAR_FAULT: fault_register_clear_all(); break;  // FSM gets EVT_FAULT_CLEARED on the falling edge
+    case HMI_CMD_NEXT_SCREEN: {
+        uint32_t cur = lv_tabview_get_tab_active(tv);
+        lv_tabview_set_active(tv, (cur + 1) % 4, LV_ANIM_ON);
+        break;
+    }
+    case HMI_CMD_PREV_SCREEN: {
+        uint32_t cur = lv_tabview_get_tab_active(tv);
+        lv_tabview_set_active(tv, (cur + 3) % 4, LV_ANIM_ON);   // +3 == -1 mod 4
+        break;
+    }
+    default: break;
+    }
+    if (evt != EVT_NONE) xQueueSend(g_event_queue, &evt, 0);
+}
+
 // =====================================================================
 // 9. The HMI task (Core 1)
 // =====================================================================
 void task_hmi(void* arg) {
     Serial.println("[hmi] task start (Core 1)");
 
-    if (PIN_TFT_BL != -1) {
-        ledcSetup(LEDC_CH_BL, 5000, LEDC_RES_BL);
-        ledcAttachPin(PIN_TFT_BL, LEDC_CH_BL);
-        ledcWrite(LEDC_CH_BL, (1 << LEDC_RES_BL) * 80 / 100);
-    } 
-    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(20)) == pdTRUE) {
-        g_status.hmi_brightness = 80;
-        xSemaphoreGive(g_status_mutex);
-    }
+    // Backlight (LED pin) is hard-wired to 3.3V on the display board, so screen
+    // brightness is fixed and not software-controllable — no LEDC setup needed.
 
     s_tft.init();
     s_tft.invertDisplay(true); // Fix physical screen inversion
     s_tft.setRotation(3); // Landscape for 320x240
     s_tft.fillScreen(TFT_BLACK);
-    s_tft.initDMA();
 
     uint16_t cal[5] = { 318, 3505, 273, 3539, 1 }; // 1 = rotate=1, inv_x=0, inv_y=0 (un-mirror X)
     s_tft.setTouch(cal);
@@ -535,13 +573,12 @@ void task_hmi(void* arg) {
 
     ui_init();
 
-    TickType_t last = xTaskGetTickCount();
     uint32_t last_refresh = 0;
 
     for (;;) {
         uint8_t cmd;
         while (xQueueReceive(g_hmi_cmd_queue, &cmd, 0) == pdTRUE) {
-            // Unused via physical buttons now, handled directly by LVGL callbacks
+            handle_hmi_cmd((HmiCmd_t)cmd);
         }
 
         if (millis() - last_refresh > 200) {
@@ -550,6 +587,6 @@ void task_hmi(void* arg) {
         }
 
         lv_timer_handler();
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(10));
+        vTaskDelay(pdMS_TO_TICKS(50)); // Safely yield
     }
 }

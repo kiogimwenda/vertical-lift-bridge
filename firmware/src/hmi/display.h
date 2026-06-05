@@ -42,9 +42,7 @@ typedef enum : uint8_t {
     HMI_CMD_HOLD,
     HMI_CMD_CLEAR_FAULT,
     HMI_CMD_NEXT_SCREEN,
-    HMI_CMD_PREV_SCREEN,
-    HMI_CMD_BRIGHTNESS_UP,
-    HMI_CMD_BRIGHTNESS_DOWN
+    HMI_CMD_PREV_SCREEN
 } HmiCmd_t;
 
 bool hmi_cmd_post(HmiCmd_t cmd);

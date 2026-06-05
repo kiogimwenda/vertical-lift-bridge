@@ -37,9 +37,10 @@
 // ====================== LIMIT SWITCHES ==============================
 #define PIN_LIMIT_ANYHIT     39     // input-only
 
-// ====================== UART2 — ESP32-CAM ===========================
-#define PIN_VISION_TX        17
-#define PIN_VISION_RX        16
+// ====================== UART2 — ESP32-CAM (vision module removed) ===
+// GPIO16 reassigned to PIN_SERVO_LEFT/RIGHT (see SERVOS section).
+// GPIO17 left free as the only remaining spare pin.
+#define PIN_VISION_TX        17     // unused / spare
 #define VISION_BAUD          115200
 
 // ====================== TRAFFIC LIGHTS (74HC595) ====================
@@ -49,8 +50,8 @@
 #define PIN_595_OE_N         -1     // Hardware tie to GND
 
 // ====================== SERVOS (SG90 ×2) ============================
-#define PIN_SERVO_LEFT        3
-#define PIN_SERVO_RIGHT       3     // Both servos driven by same PWM pin
+#define PIN_SERVO_LEFT       16     // Moved off GPIO3 (UART0 RX) to free serial monitor
+#define PIN_SERVO_RIGHT      16     // Both servos driven by same PWM pin
 #define LEDC_SERVO_FREQ_HZ   50
 #define LEDC_SERVO_RES_BITS  16
 #define LEDC_SERVO_LEFT_CH    3
@@ -72,5 +73,4 @@
 #define PIN_SERVO_L          PIN_SERVO_LEFT
 #define PIN_SERVO_R          PIN_SERVO_RIGHT
 #define PIN_UART2_TX         PIN_VISION_TX
-#define PIN_UART2_RX         PIN_VISION_RX
 #define PIN_595_OE           PIN_595_OE_N
