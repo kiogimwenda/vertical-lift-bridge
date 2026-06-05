@@ -42,13 +42,12 @@ firmware/          Main ESP32 application (PlatformIO + Arduino framework)
     system_types.h       SINGLE SOURCE OF TRUTH: states, events, faults, SharedStatus
     pin_config.h         SINGLE SOURCE OF TRUTH: all GPIO assignments
     fsm/                 Table-driven 9-state machine (engine + guards + actions)
-    motor/               L293D H-bridge + deck-pot position + stall detection
+    motor/               L298N H-bridge + timer-based deck position + runaway guard
     sensors/             Quad laser break-beam direction inference
     counterweight/       Pure-software water-tank balance simulation
-    traffic/             74HC595 traffic lights + buzzer (buzzer pin disabled)
+    traffic/             74HC595 road + marine traffic lights + buzzer (buzzer pin disabled)
     hmi/                 LVGL touchscreen display + 5-button resistor-ladder input
     safety/              Interlocks (E-stop/relay/servos), fault register, watchdog
-firmware_cam/      Optional ESP32-CAM companion (motion → JSON over UART)
 cad/               13 parametric OpenSCAD parts → STL/3MF + print guide
 mechanical/        Assembly photos
 bom/               Bill of materials + shopping list
@@ -65,21 +64,21 @@ Single source of truth: [`firmware/src/pin_config.h`](firmware/src/pin_config.h)
 
 | Subsystem | Signal | GPIO | Notes |
 |---|---|---|---|
-| **Motor (L293D, channels paralleled ≈1.2 A)** | IN1 (up) | 25 | LEDC ch0, 13-bit, 4 kHz |
+| **Motor (L298N dual H-bridge)** | IN1 (up) | 25 | LEDC ch0, 13-bit, 4 kHz; ENA tied high |
 | | IN2 (down) | 26 | LEDC ch1 |
 | | Safety relay | 32 | de-energised cuts motor power |
-| | Deck-position pot | 35 | ADC1_CH7, absolute encoder |
-| | Limit switches (diode-OR) | 39 | input-only, external 10 kΩ pull-up |
+| | ~~Deck-position pot~~ | 35 | **omitted** — timer-based positioning; spare |
+| | ~~Limit switches~~ | 39 | **omitted** — timer-based end-stops; spare |
 | **TFT ILI9341 (SPI)** | SCK / MOSI / MISO | 14 / 13 / 12 | |
 | | CS / DC | 15 / 2 | RST→EN, BL→3V3 in hardware |
 | | Touch CS (XPT2046) | 33 | IRQ polled |
 | **Laser break-beam ×4** | LDR1–4 | 18 / 19 / 21 / 22 | upstream A/B, downstream A/B |
-| **Traffic lights (74HC595)** | DATA / CLK / LATCH | 23 / 4 / 27 | OE→GND in hardware |
-| **Servos (SG90 ×2)** | shared PWM | 3 | both barriers driven by one channel (mirror) |
+| **Traffic lights (74HC595)** | DATA / CLK / LATCH | 23 / 4 / 27 | OE→GND; Q0–Q2 road, Q3–Q5 marine |
+| **Servos (SG90 ×2)** | shared PWM | 16 | both barriers driven by one channel (mirror) |
 | **Buzzer** | — | −1 (disabled) | freed to preserve UART TX0 |
 | **Operator panel** | 5-button R-ladder | 34 | ADC1_CH6 |
 | **E-stop** | NC mushroom button | 36 | input-only, ISR on CHANGE |
-| **ESP32-CAM UART2** | TX / RX | 17 / 16 | wired; vision decoupled from main FW |
+| **Spare** | — | 17 | unused (vision module omitted) |
 
 **Power:** 12 V barrel jack → LM2596 buck → 5 V rail → AMS1117 → 3.3 V rail.
 Build the power planes and verify rails with a multimeter **before** connecting
@@ -154,10 +153,11 @@ ArduinoJson 7.2.1. Last verified build: **RAM 33.2 %, Flash 19.3 %**.
 ## 7. Known limitations
 
 The firmware ships with honest, documented trade-offs forced by the ESP32 GPIO
-budget and the BOM (no motor current sense on the L293D, no rail-voltage
-telemetry, single diode-OR'd limit input, open-loop barriers, shared servo pin).
-Each is recorded with its v3-PCB fix path in
-[`docs/known_limitations.md`](docs/known_limitations.md).
+budget and the BOM: no motor current sense on the L298N, no rail-voltage
+telemetry, **no position pot or limit switches** (deck height is timer-estimated
+and re-synced to the end-stops each traverse), open-loop barriers, and a shared
+servo pin. The vision module is omitted from this build. Each trade-off is
+recorded in [`docs/known_limitations.md`](docs/known_limitations.md).
 
 ---
 
@@ -167,7 +167,7 @@ Each is recorded with its v3-PCB fix path in
 |---|---|---|
 | **M1 — George** | System & FSM | `main.cpp`, `fsm/` |
 | **M2 — Eugene** | Mechanism | `motor/`, `counterweight/` |
-| **M3 — Cindy** | Sensing | `sensors/laser`, `firmware_cam/` |
+| **M3 — Cindy** | Sensing | `sensors/laser` |
 | **M4 — Abigael** | Traffic & HMI | `traffic/`, `hmi/` |
 | **M5 — Ian** | Power & Safety | `safety/`, PCB, power |
 

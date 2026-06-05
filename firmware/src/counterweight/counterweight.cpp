@@ -3,23 +3,52 @@
 // Owner: M2 Eugene
 //
 // Pure software simulation. No physical pumps, valves, or level sensors.
-// Models two water tanks (left and right) that can be filled or drained to
-// a target level. Exposes status to SharedStatus for HMI display.
+// Models two water tanks (left and right) whose levels are SLAVED to the deck
+// height so the simulated counterweight stays synchronised with the bridge
+// span at all times (direct / proportional mapping):
 //
-// Simulation runs at ~20 Hz (50 ms tick). Fill and drain rates are tunable
-// in system_types.h. When both tanks reach their target (within tolerance),
-// the module posts EVT_CW_READY to the FSM event queue.
+//     water_level = (deck_position_mm / DECK_HEIGHT_MAX_MM) * CW_TANK_CAPACITY_ML
+//
+//       deck   0 mm  ->  tanks   0 ml   (bridge down  -> counterweight empty)
+//       deck  88 mm  ->  tanks  75 ml
+//       deck 175 mm  ->  tanks 150 ml   (bridge up    -> counterweight full)
+//
+// The fill/drain animation (CW_SIM_*_RATE) makes the level chase the
+// deck-derived target smoothly; with the default deck-travel calibration the
+// pump/drain rates keep up, so the tanks track the deck within a tick and the
+// HMI tank bars move in lockstep with the deck bar.
+//
+// Simulation runs at ~20 Hz (50 ms tick). When the deck is stationary and the
+// tanks have settled at the level for that deck position, the module posts
+// EVT_CW_READY — the pre-raise gate out of STATE_ROAD_CLEARING.
 // ============================================================================
 #include "counterweight.h"
+#include "../system_types.h"
 #include <Arduino.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
 static CounterweightStatus_t s_cw = {};
 static uint32_t s_last_tick_ms = 0;
-static bool s_was_balanced = false;
+static bool     s_was_balanced = false;
+static int16_t  s_prev_deck_mm = 0;
 
-// Simulate one tank for one tick.
+// Slave a tank's target to the deck-derived level, and set pump/drain so the
+// HMI status label reflects the direction the counterweight is moving.
+static void set_tank_target(CwTankSim_t& tank, float target_ml) {
+    if (target_ml < 0.0f)                 target_ml = 0.0f;
+    if (target_ml > CW_TANK_CAPACITY_ML)  target_ml = CW_TANK_CAPACITY_ML;
+    tank.target_ml = target_ml;
+    if (target_ml > tank.water_level_ml + CW_SIM_TOLERANCE_ML) {
+        tank.pump_active = true;  tank.drain_open = false;     // filling  (deck rising)
+    } else if (target_ml < tank.water_level_ml - CW_SIM_TOLERANCE_ML) {
+        tank.pump_active = false; tank.drain_open = true;      // draining (deck lowering)
+    } else {
+        tank.pump_active = false; tank.drain_open = false;     // settled
+    }
+}
+
+// Simulate one tank for one tick — chases target_ml at the configured rate.
 static void sim_tank(CwTankSim_t& tank, float dt_s) {
     if (tank.pump_active) {
         tank.water_level_ml += CW_SIM_FILL_RATE_ML_PER_S * dt_s;
@@ -35,13 +64,9 @@ static void sim_tank(CwTankSim_t& tank, float dt_s) {
             tank.drain_open = false;
         }
     }
-
-    // Clamp to valid range
-    if (tank.water_level_ml < 0.0f) tank.water_level_ml = 0.0f;
+    if (tank.water_level_ml < 0.0f)                tank.water_level_ml = 0.0f;
     if (tank.water_level_ml > CW_TANK_CAPACITY_ML) tank.water_level_ml = CW_TANK_CAPACITY_ML;
-
-    // Derived weight (1 ml water ≈ 1 g)
-    tank.weight_g = tank.water_level_ml;
+    tank.weight_g = tank.water_level_ml;   // 1 ml water ≈ 1 g
 }
 
 static bool tank_at_target(const CwTankSim_t& tank) {
@@ -51,61 +76,29 @@ static bool tank_at_target(const CwTankSim_t& tank) {
 }
 
 void counterweight_init(void) {
-    // Start with tanks at default fill level (simulating initial static weight)
-    s_cw.left.water_level_ml  = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.left.weight_g        = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.left.target_ml       = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.left.pump_active     = false;
-    s_cw.left.drain_open      = false;
+    // Deck is assumed parked at the bottom (0 mm) at boot, so the synchronised
+    // counterweight starts empty and balanced.
+    s_cw.left.water_level_ml = 0.0f;
+    s_cw.left.weight_g       = 0.0f;
+    s_cw.left.target_ml      = 0.0f;
+    s_cw.left.pump_active    = false;
+    s_cw.left.drain_open     = false;
+    s_cw.right = s_cw.left;
 
-    s_cw.right.water_level_ml = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.right.weight_g       = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.right.target_ml      = CW_SIM_TARGET_DEFAULT_ML;
-    s_cw.right.pump_active    = false;
-    s_cw.right.drain_open     = false;
-
-    s_cw.balanced = true;
+    s_cw.balanced       = true;
     s_cw.last_update_ms = millis();
-    s_last_tick_ms = millis();
-    s_was_balanced = true;
+    s_last_tick_ms      = millis();
+    s_was_balanced      = true;
+    s_prev_deck_mm      = 0;
 
-    Serial.println("[cw] init OK (simulated dynamic counterweight)");
+    Serial.println("[cw] init OK (deck-synchronised counterweight, starts empty)");
 }
 
-void counterweight_set_target(float left_ml, float right_ml) {
-    // Clamp targets
-    if (left_ml < 0.0f)  left_ml  = 0.0f;
-    if (left_ml > CW_TANK_CAPACITY_ML) left_ml = CW_TANK_CAPACITY_ML;
-    if (right_ml < 0.0f) right_ml = 0.0f;
-    if (right_ml > CW_TANK_CAPACITY_ML) right_ml = CW_TANK_CAPACITY_ML;
-
-    s_cw.left.target_ml  = left_ml;
-    s_cw.right.target_ml = right_ml;
-
-    // Determine whether to fill or drain each tank
-    if (left_ml > s_cw.left.water_level_ml + CW_SIM_TOLERANCE_ML) {
-        s_cw.left.pump_active = true;
-        s_cw.left.drain_open  = false;
-    } else if (left_ml < s_cw.left.water_level_ml - CW_SIM_TOLERANCE_ML) {
-        s_cw.left.pump_active = false;
-        s_cw.left.drain_open  = true;
-    }
-
-    if (right_ml > s_cw.right.water_level_ml + CW_SIM_TOLERANCE_ML) {
-        s_cw.right.pump_active = true;
-        s_cw.right.drain_open  = false;
-    } else if (right_ml < s_cw.right.water_level_ml - CW_SIM_TOLERANCE_ML) {
-        s_cw.right.pump_active = false;
-        s_cw.right.drain_open  = true;
-    }
-
-    s_cw.balanced = false;
-    // Arm the rising-edge detector in counterweight_tick(). Without this,
-    // a "set target" call with target == current level (e.g. the FSM's
-    // entry to STATE_ROAD_CLEARING with the default 120 ml on a freshly
-    // booted system) would leave s_was_balanced = true from init, and
-    // the immediately-true balance state would never produce an edge —
-    // the FSM would stall waiting for EVT_CW_READY.
+void counterweight_prepare(void) {
+    // Arm the EVT_CW_READY rising-edge detector so the FSM receives exactly one
+    // CW_READY once the counterweight has settled at the level for the current
+    // deck position. Called on entry to STATE_ROAD_CLEARING (deck at 0 mm),
+    // where the synchronised level is already 0 ml — the edge fires next tick.
     s_was_balanced = false;
 }
 
@@ -113,15 +106,33 @@ void counterweight_tick(void) {
     uint32_t now = millis();
     float dt_s = (now - s_last_tick_ms) / 1000.0f;
     s_last_tick_ms = now;
+    if (dt_s > 0.2f) dt_s = 0.2f;          // clamp first-tick / scheduling lag
 
-    // Clamp dt to avoid jumps on first tick or lag
-    if (dt_s > 0.2f) dt_s = 0.2f;
+    // --- Slave the tank targets to the (timer-estimated) deck height ---------
+    int16_t deck_mm = 0;
+    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
+        deck_mm = g_status.deck_position_mm;
+        xSemaphoreGive(g_status_mutex);
+    }
+    if (deck_mm < 0)                  deck_mm = 0;
+    if (deck_mm > DECK_HEIGHT_MAX_MM) deck_mm = DECK_HEIGHT_MAX_MM;
+    float target = ((float)deck_mm / (float)DECK_HEIGHT_MAX_MM) * CW_TANK_CAPACITY_ML;
 
-    sim_tank(s_cw.left, dt_s);
+    set_tank_target(s_cw.left,  target);
+    set_tank_target(s_cw.right, target);
+
+    sim_tank(s_cw.left,  dt_s);
     sim_tank(s_cw.right, dt_s);
 
-    bool now_balanced = tank_at_target(s_cw.left) && tank_at_target(s_cw.right);
-    s_cw.balanced = now_balanced;
+    // "Balanced" means the deck is stationary AND both tanks have reached the
+    // level for that position. Requiring a stationary deck keeps EVT_CW_READY
+    // from firing spuriously while the counterweight is tracking a moving deck.
+    bool deck_moving  = (deck_mm != s_prev_deck_mm);
+    s_prev_deck_mm    = deck_mm;
+    bool now_balanced = !deck_moving
+                     && tank_at_target(s_cw.left)
+                     && tank_at_target(s_cw.right);
+    s_cw.balanced       = now_balanced;
     s_cw.last_update_ms = now;
 
     // Push to shared status
@@ -130,7 +141,7 @@ void counterweight_tick(void) {
         xSemaphoreGive(g_status_mutex);
     }
 
-    // Post EVT_CW_READY on rising edge of balanced
+    // Post EVT_CW_READY on the rising edge of balanced (pre-raise gate).
     if (now_balanced && !s_was_balanced) {
         SystemEvent_t e = EVT_CW_READY;
         xQueueSend(g_event_queue, &e, 0);

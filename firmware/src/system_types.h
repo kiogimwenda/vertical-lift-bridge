@@ -27,17 +27,17 @@ typedef enum : uint8_t {
 
 // ----------------------------------------------------------------------------
 // FSM Events — every transition trigger. Sent via xQueue from producers
-// (sensors, vision, HMI, watchdog) to the FSM task.
+// (sensors, HMI, watchdog) to the FSM task.
 // ----------------------------------------------------------------------------
 typedef enum : uint8_t {
     EVT_NONE = 0,
-    EVT_VEHICLE_DETECTED,     // Vision/laser confirms approach
+    EVT_VEHICLE_DETECTED,     // Laser break-beam confirms vessel approach
     EVT_VEHICLE_CLEARED,      // Vehicle past barrier zone
     EVT_BARRIER_CLOSED,       // Both servo barriers down
     EVT_BARRIER_OPEN,         // Both servo barriers up
-    EVT_TOP_LIMIT_HIT,        // Top limit switch closed (or position == top)
-    EVT_BOTTOM_LIMIT_HIT,     // Bottom limit switch closed (or position == 0)
-    EVT_HOLD_TIMEOUT,         // Raised-hold timer expired
+    EVT_TOP_LIMIT_HIT,        // Deck reached top end-stop (timer-estimated, no switch)
+    EVT_BOTTOM_LIMIT_HIT,     // Deck reached bottom end-stop (timer-estimated, no switch)
+    EVT_HOLD_TIMEOUT,         // RESERVED — manual lowering only, no auto-lower timer
     EVT_ESTOP_PRESSED,        // E-stop NC contact opened (active-low IRQ)
     EVT_ESTOP_RELEASED,       // E-stop reset (key-switch acknowledged)
     EVT_FAULT_RAISED,         // Any module flagged a fault
@@ -57,16 +57,16 @@ typedef enum : uint8_t {
 // ----------------------------------------------------------------------------
 typedef enum : uint32_t {
     FAULT_NONE              = 0,
-    FAULT_OVERCURRENT       = 1u << 0,   // DEPRECATED v2.2 — L293D module has no current-sense output. Bit reserved; never set in v2.2.
-    FAULT_STALL             = 1u << 1,   // Motor on but no position change
-    FAULT_LIMIT_BOTH        = 1u << 2,   // Top AND bottom limit asserted (impossible with diode-OR; reserved for v3 PCB)
-    FAULT_POS_OUT_OF_RANGE  = 1u << 3,   // Position pot read outside 0..DECK_HEIGHT_MAX_MM band
+    FAULT_OVERCURRENT       = 1u << 0,   // RESERVED — L298N module has no MCU-facing current-sense output. Bit never set; thermal protection is on-chip.
+    FAULT_STALL             = 1u << 1,   // Motor run-time exceeded a full traverse + margin (runaway / jam guard — see DECK_*_TIME_MS)
+    FAULT_LIMIT_BOTH        = 1u << 2,   // RESERVED — limit switches omitted in this build (timer-based end-stops). Never set.
+    FAULT_POS_OUT_OF_RANGE  = 1u << 3,   // RESERVED — position potentiometer omitted in this build. Never set.
     FAULT_WATCHDOG          = 1u << 4,   // Software watchdog timeout
-    FAULT_VISION_LINK_LOST  = 1u << 5,   // No JSON from ESP32-CAM > 2s
+    FAULT_VISION_LINK_LOST  = 1u << 5,   // RESERVED — vision module omitted from this build. Never set.
     FAULT_LASER_FAIL        = 1u << 6,   // Laser fail flag
     FAULT_TFT_INIT_FAIL     = 1u << 7,   // Display did not init
     FAULT_TOUCH_INIT_FAIL   = 1u << 8,   // XPT2046 did not init
-    FAULT_BARRIER_TIMEOUT   = 1u << 9,   // RESERVED v2.2 — open-loop SG90 has no feedback (see known_limitations.md L7). Wired in v3 with arm microswitches.
+    FAULT_BARRIER_TIMEOUT   = 1u << 9,   // Barrier servo sweep did not reach target within BARRIER_TIMEOUT_MS (interlocks watchdog on the open-loop sweep).
     FAULT_RELAY_FEEDBACK    = 1u << 10,  // Relay coil energised but contact open
     FAULT_UNDERVOLT_12V     = 1u << 11,  // DEPRECATED v2.1 — rail monitoring removed (see known_limitations.md). Bit reserved; never set.
     FAULT_OVERTEMP          = 1u << 12,  // Optional NTC > 60°C
@@ -143,8 +143,8 @@ typedef struct {
 // ----------------------------------------------------------------------------
 // SharedStatus — single struct guarded by a mutex.
 // All tasks read/write through xSemaphoreTake(g_status_mutex, ...).
-// Producers: motor (position; current is always 0 in v2.2), sensors
-//            (laser), vision, counterweight (sim), interlocks, FSM.
+// Producers: motor (timer-estimated position), sensors (laser),
+//            counterweight (sim), interlocks, FSM.
 // Consumer: HMI (display + telemetry), safety (fault evaluation).
 // ----------------------------------------------------------------------------
 typedef struct {
@@ -154,12 +154,12 @@ typedef struct {
     uint32_t        state_entered_ms;
 
     // Motor / mechanism
-    int16_t         deck_position_mm;       // 0 = down, +N = up (target N_max)
+    int16_t         deck_position_mm;       // 0 = down, +N = up. Timer-estimated (no pot/encoder).
     int16_t         deck_target_mm;
     uint16_t        motor_pwm_duty;
-    int16_t         motor_current_ma;       // v2.2: always 0 — L293D module has no IS output
-    bool            top_limit_hit;
-    bool            bottom_limit_hit;
+    int16_t         motor_current_ma;       // Always 0 — L298N module has no MCU-facing current sense
+    bool            top_limit_hit;          // Virtual end-stop: deck at top (timer-estimated)
+    bool            bottom_limit_hit;       // Virtual end-stop: deck at bottom (timer-estimated)
 
     // Barriers
     uint8_t         barrier_left_angle;     // 0..180 (servo)
@@ -200,17 +200,30 @@ typedef struct {
 // Tunables — adjusted at integration time. Keep defaults conservative.
 // ----------------------------------------------------------------------------
 #define DECK_HEIGHT_MAX_MM          175      // Mechanical full-up position
-#define DECK_HEIGHT_MIN_MM          0        // Reserved — not yet used by code
-#define DECK_HEIGHT_TOLERANCE_MM    3        // Reserved — ±3 mm for "limit reached" (v3 will use this when limit-discrimination moves off the diode-OR scheme)
+#define DECK_HEIGHT_MIN_MM          0        // Mechanical full-down (home) position
+#define DECK_HEIGHT_TOLERANCE_MM    3        // Reserved — ±3 mm "at target" band for future closed-loop work
 #define MOTOR_PWM_MAX               8191     // 13-bit LEDC
-#define MOTOR_PWM_RAISE_DEFAULT     5500     // ~67% duty
+#define MOTOR_PWM_RAISE_DEFAULT     5500     // ~67% duty (raise — against gravity)
 #define MOTOR_PWM_LOWER_DEFAULT     4500     // Lighter duty descending (gravity assist)
-#define MOTOR_OVERCURRENT_MA        2200     // legacy threshold (BTS7960 era); v2.2 L293D module has no IS pin so this constant is unused. Kept for source-compatibility with member-guide examples.
-#define MOTOR_STALL_TIMEOUT_MS      2000     // No position change while energised
+
+// ---- Timer-based deck positioning ------------------------------------------
+// Limit switches AND the position potentiometer are OMITTED in this build.
+// Deck height is integrated from motor run-time: the deck covers the full
+// DECK_HEIGHT_MAX_MM in DECK_RAISE_TIME_MS going up (against gravity) and in
+// DECK_LOWER_TIME_MS coming down (gravity-assisted, hence faster). The estimate
+// is pinned hard to 0 mm / DECK_HEIGHT_MAX_MM each time a full traverse
+// completes, so error cannot accumulate from cycle to cycle.
+//   CALIBRATION: bench-measure both times at the PWM duties above and update
+//   these two values — this is what makes the HMI deck height read true.
+//   ASSUMPTION: the deck is parked at the bottom (0 mm) at power-on.
+#define DECK_RAISE_TIME_MS          6000     // 0 -> MAX at MOTOR_PWM_RAISE_DEFAULT  (MEASURE ON HARDWARE)
+#define DECK_LOWER_TIME_MS          5000     // MAX -> 0 at MOTOR_PWM_LOWER_DEFAULT  (MEASURE ON HARDWARE)
+#define MOTION_TIMEOUT_MARGIN_MS    2000     // Runaway guard: FAULT_STALL if a move runs this long past a full traverse
+
 #define BARRIER_DOWN_ANGLE          0
 #define BARRIER_UP_ANGLE            90
-#define BARRIER_TIMEOUT_MS          1500
-#define HOLD_TIMEOUT_MS             8000     // Raised-hold for boat passage
+#define BARRIER_TIMEOUT_MS          3000     // Max time for a servo barrier sweep to reach target (full 90° sweep ≈ 2.25 s)
+#define HOLD_TIMEOUT_MS             8000     // RESERVED — manual lowering only; no auto-lower is implemented
 #define LASER_BEAM_SPACING_CM       3        // Gap between Beam A and B within each pair
 // Simulated dynamic counterweight tunables
 #define CW_TANK_CAPACITY_ML        150.0f   // Max tank capacity (ml)
@@ -219,7 +232,6 @@ typedef struct {
 #define CW_SIM_TARGET_DEFAULT_ML   120.0f   // Default fill level (matches static weight)
 #define CW_SIM_TOLERANCE_ML        2.0f     // ±2 ml = "at target"
 
-#define VISION_HEARTBEAT_TIMEOUT_MS 2000
 #define WATCHDOG_KICK_PERIOD_MS     500      // Reserved — current design has each task kick at its own tick rate, this constant is unused but kept in case a centralised kick scheduler is introduced later
 #define WATCHDOG_MAX_INTERVAL_MS    1500
 

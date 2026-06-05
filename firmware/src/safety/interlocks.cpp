@@ -108,15 +108,23 @@ void interlocks_evaluate(void) {
     // Barrier reach detection based on current position hitting target
     bool barrier_done = (s_current_angle == s_target_angle);
 
+    // Barrier sweep watchdog: the open-loop servo sweep is deterministic, so
+    // if it has not reached its target within BARRIER_TIMEOUT_MS something is
+    // wrong (e.g. interlocks_evaluate is not being serviced). Raise
+    // FAULT_BARRIER_TIMEOUT so the FSM trips to FAULT rather than silently
+    // waiting forever for EVT_BARRIER_CLOSED / EVT_BARRIER_OPEN.
+    bool barrier_timeout = (!barrier_done)
+                        && ((millis() - s_barrier_started_ms) > BARRIER_TIMEOUT_MS);
+
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.estop_active                 = estop;
         g_status.barrier_left_angle           = s_current_angle;
         g_status.barrier_right_angle          = s_current_angle;
         g_status.barrier_left_target_reached  = barrier_done;
         g_status.barrier_right_target_reached = barrier_done;
+        if (barrier_timeout) SET_FAULT(g_status.fault_flags, FAULT_BARRIER_TIMEOUT);
         xSemaphoreGive(g_status_mutex);
     }
-    (void)BARRIER_TIMEOUT_MS;   // referenced in known_limitations.md (L7)
 
     // Emit FSM events on the rising edge of barrier_done so the FSM can
     // leave STATE_ROAD_CLEARING / STATE_ROAD_OPENING without waiting for

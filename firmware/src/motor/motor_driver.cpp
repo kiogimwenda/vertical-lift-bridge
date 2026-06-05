@@ -1,30 +1,37 @@
 // ============================================================================
-// motor/motor_driver.cpp — L293D module H-bridge control
-// + position estimate from a 10 kΩ deck-position potentiometer.
+// motor/motor_driver.cpp — L298N dual H-bridge control
+// + TIMER-BASED deck-position estimate (no potentiometer, no limit switches).
 // Owner: M2 Eugene (Mechanism)
 //
 // Pin mapping (see pin_config.h):
-//   MOT_IN1 (forward/up)    — GPIO25  (LEDC ch0, 13-bit, 20 kHz)
-//   MOT_IN2 (reverse/down)  — GPIO26  (LEDC ch1, 13-bit, 20 kHz)
-//   MOT_EN                  — tied high to +5 V on the L293D module
+//   MOT_IN1 (forward/up)    — GPIO25  (LEDC ch0, 13-bit, 4 kHz)
+//   MOT_IN2 (reverse/down)  — GPIO26  (LEDC ch1, 13-bit, 4 kHz)
+//   ENA                     — tied HIGH on the L298N module
 //                             (PWM rides on IN1/IN2 directly)
-//   DECK_POSITION           — GPIO35  (ADC1_CH7, potentiometer wiper)
-//   LIMIT_ANYHIT            — GPIO39  (diode-OR of all limit switches)
 //
-// Channel paralleling: the L293D's two internal channels are wired in
-// parallel on the PCB (IN1↔IN3, IN2↔IN4, EN1↔EN2; OUT1↔OUT3, OUT2↔OUT4)
-// to lift the 600 mA single-channel rating to 1.2 A continuous / 2.4 A
-// peak — necessary headroom for the JGA25-370's ~600 mA nominal draw.
-// The firmware sees only IN1/IN2; the parallelisation is a hardware-only
-// change and requires no driver code adjustments.
+// Positioning model
+// -----------------
+// The position potentiometer and the limit switches are OMITTED in this
+// build. Deck height is integrated from motor run-time: the firmware knows
+// the deck travels the full DECK_HEIGHT_MAX_MM in DECK_RAISE_TIME_MS going up
+// and DECK_LOWER_TIME_MS coming down (gravity-assisted, so faster). Each tick
+// adds/subtracts the distance covered since the previous tick.
 //
-// Note on motor current sensing: the L293D has no current-sense output.
-// FAULT_OVERCURRENT is therefore not raised by firmware — the L293D's
-// internal thermal-shutdown handles abuse, and the stall detector below
-// covers the dominant failure mode.
+// Drift control: the estimate is pinned HARD to the mechanical end-stops
+// (0 mm / DECK_HEIGHT_MAX_MM) the moment a traverse completes, and a virtual
+// EVT_TOP_LIMIT_HIT / EVT_BOTTOM_LIMIT_HIT is emitted there. Because every
+// full raise ends pinned at MAX and every full lower ends pinned at 0, the
+// estimate re-synchronises twice per cycle and error cannot accumulate.
+// ASSUMPTION: the deck is parked at the bottom (0 mm) at power-on.
 //
-// Counts/mm calibration is captured in CAL_COUNTS_PER_MM. Re-run the
-// calibration sketch (member guide M2) on each new gearmotor batch.
+// Runaway guard: with no feedback we cannot detect a true mechanical stall,
+// but we DO bound how long the motor may be commanded to move. If a move runs
+// longer than a full traverse + MOTION_TIMEOUT_MARGIN_MS without reaching its
+// end-stop, FAULT_STALL is raised and the FSM trips to FAULT (relay cut).
+//
+// Current sensing: the L298N module exposes no MCU-facing current-sense
+// output, so motor_current_ma stays 0 and FAULT_OVERCURRENT is never raised —
+// the L298N's on-chip thermal shutdown is the hardware safety net.
 // ============================================================================
 #include "motor_driver.h"
 #include "../pin_config.h"
@@ -41,35 +48,23 @@
 #define LEDC_FREQ_HZ    LEDC_MOTOR_FREQ_HZ  // 4000 Hz, satisfying 80MHz APB limit
 
 // ---------------------------------------------------------------------------
-// Calibration — ADC counts per millimetre of deck travel.
-// Measured by the calibration sketch in member_guides/M2 §7. Auto-zero
-// happens whenever the bottom limit switch fires; pos_mm is then derived
-// as (adc_now - s_adc_zero) / CAL_COUNTS_PER_MM.
-// PLACEHOLDER: M2 Eugene must re-measure on hardware and update.
-// ---------------------------------------------------------------------------
-#define CAL_COUNTS_PER_MM      14      // From bench measurement (M2 §7)
-#define CAL_ADC_ZERO_DEFAULT   400     // Absolute baseline ADC reading at physical 0mm
-
-// ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 static MotorDirection_t s_dir          = MOTOR_STOP;
 static uint16_t         s_duty         = 0;
-static uint32_t         s_last_move_ms = 0;
-// ADC reading captured at the last bottom-limit hit. Until the first
-// bottom-limit event, we use 0 (assumes deck starts at the bottom).
-static int32_t          s_adc_zero     = 0;
+
+// Timer-based position estimate (millimetres, kept in float for sub-mm steps).
+static float            s_pos_mm       = 0.0f;   // assume parked at bottom on boot
+static uint32_t         s_last_tick_ms = 0;      // for dt integration
+static uint32_t         s_move_start_ms= 0;      // when the current UP/DOWN move began
+static bool             s_moving       = false;  // true while dir is UP or DOWN
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 void motor_driver_init(void) {
-    // Single diode-OR'd limit input — GPIO 39 has no internal pull-up,
-    // an external 10 kΩ pull-up to +3V3 is provided on the PCB (see
-    // ConnectorsSafety sub-sheet, R_pu_39).
-    pinMode(PIN_LIMIT_ANYHIT, INPUT);
-
-    // PWM channels
+    // PWM channels (ENA tied high on the L298N module; speed/direction via
+    // PWM on IN1/IN2).
     ledcSetup(LEDC_CH_IN1, LEDC_FREQ_HZ, LEDC_RES_BITS);
     ledcSetup(LEDC_CH_IN2, LEDC_FREQ_HZ, LEDC_RES_BITS);
     ledcAttachPin(PIN_MOT_IN1, LEDC_CH_IN1);
@@ -77,18 +72,13 @@ void motor_driver_init(void) {
     ledcWrite(LEDC_CH_IN1, 0);
     ledcWrite(LEDC_CH_IN2, 0);
 
-    // ADC for deck-position pot (motor current sense not present on L293D)
-    analogReadResolution(12);
-    analogSetPinAttenuation(PIN_DECK_POSITION, ADC_11db); // 0..3.3 V
+    // Deck assumed parked at the mechanical bottom at power-on (see header).
+    s_pos_mm        = 0.0f;
+    s_last_tick_ms  = millis();
+    s_move_start_ms = s_last_tick_ms;
+    s_moving        = false;
 
-    // The 10k pot is an absolute encoder. Seeding `s_adc_zero` dynamically
-    // at boot causes a critical failure in limit-switch discrimination if the
-    // bridge is booted while raised. We MUST rely on a hardcoded absolute
-    // calibration zero, which is then fine-tuned on the first bottom-limit hit.
-    s_adc_zero = CAL_ADC_ZERO_DEFAULT;
-
-    Serial.printf("[motor] init OK (L293D module, no current-sense, adc_zero=%ld)\n",
-                  (long)s_adc_zero);
+    Serial.println("[motor] init OK (L298N module, timer-based positioning, no pot/limit)");
 }
 
 void motor_driver_apply(const MotorCommand_t& cmd) {
@@ -106,10 +96,9 @@ void motor_driver_apply(const MotorCommand_t& cmd) {
         ledcWrite(LEDC_CH_IN2, s_duty);
         break;
     case MOTOR_BRAKE:
-        // Dynamic short-brake on the L293D: drive both half-bridges to the
-        // same rail (here: both inputs HIGH = both motor terminals at +Vmot).
-        // The motor sees zero terminal-to-terminal voltage and the back-EMF
-        // is shorted through the high-side switches, braking the rotor.
+        // Dynamic short-brake on the L298N: drive both inputs HIGH so both
+        // motor terminals sit at the same rail; back-EMF is shorted through
+        // the high-side switches and the rotor is braked.
         ledcWrite(LEDC_CH_IN1, MOTOR_PWM_MAX);
         ledcWrite(LEDC_CH_IN2, MOTOR_PWM_MAX);
         break;
@@ -120,84 +109,66 @@ void motor_driver_apply(const MotorCommand_t& cmd) {
         ledcWrite(LEDC_CH_IN2, 0);
         break;
     }
-    s_last_move_ms = millis();
+
+    // (Re)start the runaway timer only on the rising edge into a moving state
+    // so that re-issuing the same direction does not keep resetting it.
+    bool now_moving = (s_dir == MOTOR_UP || s_dir == MOTOR_DOWN);
+    if (now_moving && !s_moving) {
+        s_move_start_ms = millis();
+    }
+    s_moving = now_moving;
 }
 
 void motor_driver_tick(void) {
-    // Position from the deck-position pot wiper (no Hall encoder fitted).
-    uint32_t adc_sum = 0;
-    for (int i = 0; i < 4; i++) adc_sum += analogRead(PIN_DECK_POSITION);
-    int32_t adc_avg = adc_sum >> 2;
-    // Convert ADC delta from the bottom-limit reference to millimetres.
-    // pos32_raw is unclamped — used by the FAULT_POS_OUT_OF_RANGE check
-    // below. pos_mm is clamped for downstream consumers.
-    int32_t pos32_raw = (adc_avg - s_adc_zero) / CAL_COUNTS_PER_MM;
-    int32_t pos32     = pos32_raw;
-    if (pos32 < 0)                       pos32 = 0;
-    if (pos32 > DECK_HEIGHT_MAX_MM + 20) pos32 = DECK_HEIGHT_MAX_MM + 20;
-    int16_t pos_mm = (int16_t)pos32;
+    // --- Integrate position from elapsed time --------------------------------
+    uint32_t now = millis();
+    uint32_t dt  = now - s_last_tick_ms;
+    s_last_tick_ms = now;
+    if (dt > 200) dt = 200;          // clamp first-tick / scheduling lag
 
-    // Single diode-OR'd limit signal on GPIO 39 (see known_limitations L2).
-    // Discriminate top vs bottom by deck position: above midpoint -> top,
-    // below midpoint -> bottom. This was the v2.1 design intent that was
-    // not yet wired in firmware; v2.2 closes that gap.
-    bool any_hit = (digitalRead(PIN_LIMIT_ANYHIT) == LOW);
-    bool top_hit = false, bot_hit = false;
-    if (any_hit) {
-        if (pos_mm >= (DECK_HEIGHT_MAX_MM / 2)) top_hit = true;
-        else                                    bot_hit = true;
-    }
+    bool top_hit = false;
+    bool bot_hit = false;
 
-    // Auto-zero on bottom-limit hit: capture the ADC reading at this
-    // moment as the "deck = 0 mm" reference so subsequent ticks start
-    // measuring from the true mechanical bottom. This is what makes
-    // CAL_COUNTS_PER_MM a per-mm calibration rather than a full-range
-    // calibration, and it self-corrects pot drift over the project's life.
-    if (bot_hit) {
-        s_adc_zero = adc_avg;
-        pos_mm     = 0;
-    }
-
-    // Stall detection — derived from the position estimate, not encoder.
-    bool stalled = false;
-    static int16_t s_last_pos_for_stall = 0;
-    if (s_dir == MOTOR_UP || s_dir == MOTOR_DOWN) {
-        if (abs((int)pos_mm - (int)s_last_pos_for_stall) < 1) {
-            if ((millis() - s_last_move_ms) > MOTOR_STALL_TIMEOUT_MS) {
-                stalled = true;
-            }
-        } else {
-            s_last_pos_for_stall = pos_mm;
-            s_last_move_ms       = millis();
+    if (s_dir == MOTOR_UP) {
+        // mm covered this tick at the calibrated raise rate
+        s_pos_mm += ((float)DECK_HEIGHT_MAX_MM / (float)DECK_RAISE_TIME_MS) * (float)dt;
+        if (s_pos_mm >= (float)DECK_HEIGHT_MAX_MM) {
+            s_pos_mm = (float)DECK_HEIGHT_MAX_MM;   // pin to top end-stop
+            top_hit  = true;
         }
-    } else {
-        s_last_pos_for_stall = pos_mm;
+    } else if (s_dir == MOTOR_DOWN) {
+        s_pos_mm -= ((float)DECK_HEIGHT_MAX_MM / (float)DECK_LOWER_TIME_MS) * (float)dt;
+        if (s_pos_mm <= 0.0f) {
+            s_pos_mm = 0.0f;                         // pin to bottom end-stop
+            bot_hit  = true;
+        }
     }
 
-    // Out-of-range check: if pos_mm reads negative or unreasonably above
-    // DECK_HEIGHT_MAX_MM, the pot wiper is probably disconnected or the
-    // mechanical coupling has broken. Raise FAULT_POS_OUT_OF_RANGE so the
-    // FSM stops trusting the position estimate.
-    bool pos_bad = (pos32_raw < -10) || (pos32_raw > DECK_HEIGHT_MAX_MM + 15);
+    int16_t pos_mm = (int16_t)(s_pos_mm + 0.5f);
 
-    // Push to shared status. motor_current_ma stays at 0 (no IS pin on
-    // L293D); FAULT_OVERCURRENT is therefore never raised by firmware in
-    // v2.2 — the L293D's internal thermal shutdown is the safety net.
+    // --- Runaway guard -------------------------------------------------------
+    // No feedback means we can't see a true stall; instead we cap how long a
+    // move may run. A full traverse should never take longer than its
+    // calibrated time, so anything past that + margin is a jam / runaway.
+    bool runaway = false;
+    if (s_moving) {
+        uint32_t budget = (s_dir == MOTOR_UP ? DECK_RAISE_TIME_MS : DECK_LOWER_TIME_MS)
+                        + MOTION_TIMEOUT_MARGIN_MS;
+        if ((now - s_move_start_ms) > budget) runaway = true;
+    }
+
+    // --- Publish to shared status -------------------------------------------
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.deck_position_mm = pos_mm;
-        g_status.motor_current_ma = 0;
+        g_status.motor_current_ma = 0;            // L298N: no MCU-facing IS pin
         g_status.motor_pwm_duty   = s_duty;
-        g_status.top_limit_hit    = top_hit;
-        g_status.bottom_limit_hit = bot_hit;
-        if (stalled)  SET_FAULT(g_status.fault_flags, FAULT_STALL);
-        if (pos_bad)  SET_FAULT(g_status.fault_flags, FAULT_POS_OUT_OF_RANGE);
-        // FAULT_LIMIT_BOTH is impossible with the diode-OR scheme (only
-        // one logical bit can be true at a time after the discriminator
-        // above) — left in the enum for v3 PCB which wires both limits.
+        g_status.top_limit_hit    = (pos_mm >= DECK_HEIGHT_MAX_MM);
+        g_status.bottom_limit_hit = (pos_mm <= 0);
+        if (runaway) SET_FAULT(g_status.fault_flags, FAULT_STALL);
         xSemaphoreGive(g_status_mutex);
     }
 
-    // Emit limit-hit events to FSM (edge-triggered)
+    // --- Emit virtual end-stop events to the FSM (edge-triggered) ------------
     static bool s_top_prev = false;
     static bool s_bot_prev = false;
     if (top_hit && !s_top_prev) {
@@ -222,10 +193,7 @@ int16_t motor_driver_position_mm(void) {
 }
 
 int16_t motor_driver_current_ma(void) {
-    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-        int16_t v = g_status.motor_current_ma;
-        xSemaphoreGive(g_status_mutex);
-        return v;
-    }
+    // Retained for API stability — the L298N module has no current-sense
+    // output wired to the MCU, so this is always 0.
     return 0;
 }

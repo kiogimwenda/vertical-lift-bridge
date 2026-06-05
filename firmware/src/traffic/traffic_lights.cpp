@@ -78,6 +78,7 @@ void traffic_lights_init(void) {
 }
 
 void traffic_lights_set_road(TrafficLightState_t s)   { s_road = s; }
+void traffic_lights_set_marine(TrafficLightState_t s) { s_marine = s; }
 
 static bool s_test_mode = false;
 
@@ -92,14 +93,16 @@ void traffic_lights_tick(void) {
     
     s_blink_phase ^= 1;
     bool on = (s_blink_phase != 0);
-    uint8_t bits = state_to_bits(s_road, 0, on);
-    
+    // Road stack on Q0..Q2, marine stack on Q3..Q5 of the same 74HC595 byte.
+    uint8_t bits = state_to_bits(s_road,   0, on)
+                 | state_to_bits(s_marine, 3, on);
+
     // Only shift out and update if the actual LED state needs to change.
     if (bits != s_last_bits) {
         Serial.printf("[lights] Shift register output updated to: 0x%02X\n", bits);
         shift_out(bits);
         s_last_bits = bits;
-        
+
         if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
             g_status.lights_road   = bits & 0x07;
             xSemaphoreGive(g_status_mutex);

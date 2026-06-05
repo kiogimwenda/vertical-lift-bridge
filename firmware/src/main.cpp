@@ -182,9 +182,10 @@ static void task_fsm(void* arg) {
 }
 
 // ===========================================================================
-// task_motor — closed-loop on deck position via potentiometer; stall watch.
-// (No current monitoring in v2.2 — L293D module has no IS pin; cf. L6 in
-//  docs/known_limitations.md.)
+// task_motor — L298N H-bridge drive + timer-based deck-position estimate.
+// No potentiometer and no limit switches: position is integrated from motor
+// run-time and pinned to the end-stops each traverse (see motor_driver.cpp).
+// No current monitoring — the L298N module has no MCU-facing current sense.
 // ===========================================================================
 static void task_motor(void* arg) {
     MotorCommand_t cmd;
@@ -192,7 +193,7 @@ static void task_motor(void* arg) {
         if (xQueueReceive(g_motor_cmd_queue, &cmd, pdMS_TO_TICKS(20)) == pdTRUE) {
             motor_driver_apply(cmd);
         }
-        motor_driver_tick();   // pot ADC read, position update, stall check
+        motor_driver_tick();   // integrate position, emit virtual end-stops, runaway guard
         safety_watchdog_kick_motor();
     }
 }
@@ -248,15 +249,14 @@ static void task_counterweight(void* arg) {
 }
 
 // ===========================================================================
-// task_telemetry — uptime + CPU load. 1 Hz.
-// (Voltage rails are not measured in v2.2 — see L1 in known_limitations.md.)
+// task_telemetry — uptime heartbeat. 1 Hz.
+// (CPU-load reporting and voltage-rail monitoring are intentionally omitted.)
 // ===========================================================================
 static void task_telemetry(void* arg) {
     TickType_t last = xTaskGetTickCount();
     for (;;) {
         if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(100)) == pdTRUE) {
             g_status.uptime_ms = millis();
-            // CPU load: read FreeRTOS runtime stats if enabled, else placeholder.
             xSemaphoreGive(g_status_mutex);
         }
         vTaskDelayUntil(&last, pdMS_TO_TICKS(1000));

@@ -6,11 +6,12 @@
 
 #pragma once
 
-// ====================== MOTOR =======================================
-#define PIN_MOTOR_IN1        25     // LEDC ch 0
-#define PIN_MOTOR_IN2        26     // LEDC ch 1
-#define PIN_MOTOR_RELAY      32     // Safety relay
-#define PIN_DECK_POSITION    35     // ADC1_CH7, pot
+// ====================== MOTOR (L298N dual H-bridge) =================
+// ENA tied high on the module; PWM rides directly on IN1/IN2.
+#define PIN_MOTOR_IN1        25     // LEDC ch 0  (L298N IN1, up)
+#define PIN_MOTOR_IN2        26     // LEDC ch 1  (L298N IN2, down)
+#define PIN_MOTOR_RELAY      32     // Safety relay (cuts L298N supply)
+#define PIN_DECK_POSITION    35     // UNUSED — position pot omitted (timer-based positioning). Reserved spare; do not reassign.
 
 #define LEDC_MOTOR_FREQ_HZ   4000
 #define LEDC_MOTOR_RES_BITS  13
@@ -34,14 +35,14 @@
 #define PIN_LDR3_IN          21     // Downstream A
 #define PIN_LDR4_IN          22     // Downstream B
 
-// ====================== LIMIT SWITCHES ==============================
-#define PIN_LIMIT_ANYHIT     39     // input-only
+// ====================== LIMIT SWITCHES (omitted) ====================
+// Limit switches are omitted in this build — end-stops are timer-estimated.
+#define PIN_LIMIT_ANYHIT     39     // UNUSED (input-only). Reserved spare; do not reassign.
 
-// ====================== UART2 — ESP32-CAM (vision module removed) ===
-// GPIO16 reassigned to PIN_SERVO_LEFT/RIGHT (see SERVOS section).
-// GPIO17 left free as the only remaining spare pin.
-#define PIN_VISION_TX        17     // unused / spare
-#define VISION_BAUD          115200
+// ====================== SPARE PINS ==================================
+// Vision module (ESP32-CAM) and its UART2 link are omitted from this build.
+// GPIO16 carries the barrier servos (see SERVOS). GPIO17 is the only true spare.
+#define PIN_SPARE_GPIO17     17     // unused / spare
 
 // ====================== TRAFFIC LIGHTS (74HC595) ====================
 #define PIN_595_DATA         23
@@ -72,5 +73,4 @@
 #define PIN_RELAY            PIN_MOTOR_RELAY
 #define PIN_SERVO_L          PIN_SERVO_LEFT
 #define PIN_SERVO_R          PIN_SERVO_RIGHT
-#define PIN_UART2_TX         PIN_VISION_TX
 #define PIN_595_OE           PIN_595_OE_N

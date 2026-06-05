@@ -112,8 +112,8 @@ static void popup_timer_cb(lv_timer_t * t) {
 static void header_click_cb(lv_event_t * e) {
     g_status_snapshot();
     char buf[64];
-    // L293D module has no current-sense output, so motor_current_ma is always
-    // 0. Report deck height and commanded PWM duty instead — both are real.
+    // L298N module has no current-sense output, so motor_current_ma is always
+    // 0. Report deck height (timer-estimated) and commanded PWM duty instead.
     sprintf(buf, "Deck Height: %d mm\nMotor PWM: %d%%",
             s_local.deck_position_mm,
             (s_local.motor_pwm_duty * 100) / MOTOR_PWM_MAX);
@@ -390,7 +390,7 @@ static void refresh_active(void) {
         last_sys_state = s_local.state;
     }
 
-    // Motor status is derived from FSM state, not current. The L293D module
+    // Motor status is derived from FSM state, not current. The L298N module
     // has no current-sense output, so motor_current_ma is always 0 — keying
     // the status off it would leave MOT permanently stuck on "IDLE". State +
     // commanded duty are the truthful signals we have.
