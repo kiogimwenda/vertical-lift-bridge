@@ -9,7 +9,6 @@
 #include "../traffic/traffic_lights.h"
 #include "../traffic/buzzer.h"
 #include "../safety/interlocks.h"
-#include "../hmi/display.h"
 #include <Arduino.h>
 
 // ---- helpers ---------------------------------------------------------------
@@ -42,7 +41,6 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_marine(TL_RED);
         send_motor(MOTOR_STOP, 0);
         barriers_open();
-        display_notify_state_change(STATE_IDLE);
         break;
 
     case STATE_ROAD_CLEARING:
@@ -55,7 +53,6 @@ void fsm_action_on_entry(SystemState_t s) {
         // one EVT_CW_READY edge once the (already-settled) counterweight reports
         // balanced, letting the FSM advance to RAISING.
         counterweight_prepare();
-        display_notify_state_change(STATE_ROAD_CLEARING);
         break;
 
     case STATE_RAISING:
@@ -65,7 +62,6 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_road  (TL_RED);
         traffic_lights_set_marine(TL_RED);
         send_motor(MOTOR_UP, MOTOR_PWM_RAISE_DEFAULT);
-        display_notify_state_change(STATE_RAISING);
         break;
 
     case STATE_RAISED_HOLD:
@@ -73,7 +69,6 @@ void fsm_action_on_entry(SystemState_t s) {
         send_motor(MOTOR_BRAKE, 0);
         traffic_lights_set_road  (TL_RED);
         traffic_lights_set_marine(TL_GREEN);
-        display_notify_state_change(STATE_RAISED_HOLD);
         break;
 
     case STATE_LOWERING:
@@ -81,7 +76,6 @@ void fsm_action_on_entry(SystemState_t s) {
         send_motor(MOTOR_DOWN, MOTOR_PWM_LOWER_DEFAULT);
         traffic_lights_set_road  (TL_RED);
         traffic_lights_set_marine(TL_RED);
-        display_notify_state_change(STATE_LOWERING);
         break;
 
     case STATE_ROAD_OPENING:
@@ -90,7 +84,6 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_marine(TL_RED);
         buzzer_chirp(1);
         barriers_open();
-        display_notify_state_change(STATE_ROAD_OPENING);
         break;
 
     case STATE_FAULT:
@@ -98,7 +91,6 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_road  (TL_RED);
         traffic_lights_set_marine(TL_RED);
         buzzer_pattern_fault();
-        display_notify_state_change(STATE_FAULT);
         break;
 
     case STATE_ESTOP:
@@ -106,7 +98,6 @@ void fsm_action_on_entry(SystemState_t s) {
         traffic_lights_set_road  (TL_RED);
         traffic_lights_set_marine(TL_RED);
         buzzer_pattern_estop();
-        display_notify_state_change(STATE_ESTOP);
         break;
 
     default: break;

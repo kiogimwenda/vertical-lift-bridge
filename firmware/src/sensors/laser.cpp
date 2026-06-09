@@ -48,12 +48,14 @@ static VehicleDirection_t infer_direction(const uint8_t* hist_a,
     int a_first = find_first_rising(hist_a, start);
     int b_first = find_first_rising(hist_b, start);
 
+    // A direction can only be asserted when BOTH beams in the pair have been
+    // broken in sequence. A single beam breaking (a stuck/noisy LDR, or a
+    // partial obstruction) is NOT enough — treating it as APPROACHING used to
+    // latch vessel_approaching on one bad sensor and block lowering forever.
     if (a_first >= 0 && b_first >= 0) {
         if      (a_first < b_first) return DIR_APPROACHING;
         else if (b_first < a_first) return DIR_LEAVING;
         else                        return DIR_BOTH;
-    } else if (a_first >= 0 || b_first >= 0) {
-        return (a_first >= 0) ? DIR_APPROACHING : DIR_LEAVING;
     }
     return DIR_NONE;
 }
@@ -93,28 +95,14 @@ void sensors_laser_tick(void) {
 
     s_ls.last_update_ms = millis();
 
-    // Edge detection for FSM events
-    static bool s_was_approaching = false;
-    bool now_approaching = s_ls.vessel_approaching;
-
+    // Publish to shared status. Vessel state is consumed from here by the HMI
+    // ("MARINE" card) and by fsm_guard_safe_to_lower(). This is a manual-raise
+    // design, so the laser does NOT post FSM transition events — it informs the
+    // operator and gates lowering, nothing more.
     if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(10)) == pdTRUE) {
         g_status.laser = s_ls;
         // Laser does not easily timeout in the same way as ultrasonic, so clear the fault
         CLR_FAULT(g_status.fault_flags, FAULT_LASER_FAIL);
         xSemaphoreGive(g_status_mutex);
     }
-
-    if (now_approaching && !s_was_approaching) {
-        SystemEvent_t e = EVT_VEHICLE_DETECTED;
-        xQueueSend(g_event_queue, &e, 0);
-    } else if (!now_approaching && s_was_approaching) {
-        // Only clear when no pair reports any blockage
-        if (!s_ls.upstream_blocked && !s_ls.downstream_blocked) {
-            SystemEvent_t e = EVT_VEHICLE_CLEARED;
-            xQueueSend(g_event_queue, &e, 0);
-        }
-    }
-    s_was_approaching = now_approaching;
 }
-
-LaserStatus_t sensors_laser_get(void) { return s_ls; }

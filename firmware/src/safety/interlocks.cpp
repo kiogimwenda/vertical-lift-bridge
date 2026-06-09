@@ -72,8 +72,6 @@ void interlocks_force_safe(void) {
     set_servo_angle(BARRIER_DOWN_ANGLE);
 }
 
-bool interlocks_estop_active(void) { return s_estop_now; }
-
 void interlocks_evaluate(void) {
     bool estop = s_estop_now || (digitalRead(PIN_ESTOP) == HIGH);
 

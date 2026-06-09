@@ -15,4 +15,5 @@
 void counterweight_init(void);
 void counterweight_tick(void);     // Call at ~20 Hz from task; slaves tanks to deck height
 void counterweight_prepare(void);  // Arm the EVT_CW_READY gate before a raise (call on ROAD_CLEARING)
-CounterweightStatus_t counterweight_get(void);
+// Status is published to g_status.counterweight by counterweight_tick(); the
+// HMI reads it from there, so no public accessor is exposed.

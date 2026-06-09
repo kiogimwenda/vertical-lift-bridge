@@ -80,17 +80,7 @@ void traffic_lights_init(void) {
 void traffic_lights_set_road(TrafficLightState_t s)   { s_road = s; }
 void traffic_lights_set_marine(TrafficLightState_t s) { s_marine = s; }
 
-static bool s_test_mode = false;
-
-void traffic_lights_test(uint8_t bits) {
-    s_test_mode = true;
-    Serial.printf("[lights] DIRECT HARDWARE INJECTION: 0x%02X\n", bits);
-    shift_out(bits);
-}
-
 void traffic_lights_tick(void) {
-    if (s_test_mode) return; // Freeze FSM updates during hardware test
-    
     s_blink_phase ^= 1;
     bool on = (s_blink_phase != 0);
     // Road stack on Q0..Q2, marine stack on Q3..Q5 of the same 74HC595 byte.

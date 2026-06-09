@@ -64,6 +64,7 @@ static lv_obj_t *pg_home, *pg_ops, *pg_cw, *pg_settings;
 static lv_obj_t *header, *lbl_state, *lbl_pos, *bar_pos;
 static lv_obj_t *lbl_mot_stat; // Separate label for motor status to handle color properly
 static lv_obj_t *led_road_r, *led_road_y, *led_road_g;
+static lv_obj_t *led_marine_r, *led_marine_y, *led_marine_g;
 static lv_obj_t *led_us, *led_ds;
 static lv_obj_t *lbl_marine_header;
 static lv_obj_t *meter_motor;
@@ -188,30 +189,57 @@ static void build_home(lv_obj_t *parent) {
     lv_led_set_color(led_ds, lv_palette_main(LV_PALETTE_GREEN));
     lv_led_off(led_ds);
 
-    // --- Right Column: Traffic Lights ---
+    // --- Right Column: Signal stacks (road + marine) ---
+    // Two side-by-side R/Y/G stacks. The left column ("RD") mirrors the road
+    // traffic light; the right column ("MR") mirrors the marine signal the
+    // firmware drives on 74HC595 Q3-Q5 (green only at RAISED_HOLD = boats pass).
     lv_obj_t *card_lights = lv_obj_create(parent);
     lv_obj_set_size(card_lights, 100, 150);
     lv_obj_align(card_lights, LV_ALIGN_RIGHT_MID, -5, -10);
     lv_obj_add_style(card_lights, &style_card, 0);
 
     lv_obj_t *lbl2 = lv_label_create(card_lights);
-    lv_label_set_text(lbl2, "TRAFFIC");
+    lv_label_set_text(lbl2, "SIGNALS");
     lv_obj_align(lbl2, LV_ALIGN_TOP_MID, 0, 0);
 
+    lv_obj_t *lbl_rd = lv_label_create(card_lights);
+    lv_label_set_text(lbl_rd, "RD");
+    lv_obj_align(lbl_rd, LV_ALIGN_TOP_LEFT, 6, 18);
+    lv_obj_t *lbl_mr = lv_label_create(card_lights);
+    lv_label_set_text(lbl_mr, "MR");
+    lv_obj_align(lbl_mr, LV_ALIGN_TOP_RIGHT, -6, 18);
+
+    // Road stack (left column, x = -22)
     led_road_g = lv_led_create(card_lights);
-    lv_obj_set_size(led_road_g, 24, 24);
-    lv_obj_align(led_road_g, LV_ALIGN_CENTER, 0, -30);
+    lv_obj_set_size(led_road_g, 18, 18);
+    lv_obj_align(led_road_g, LV_ALIGN_CENTER, -22, -16);
     lv_led_set_color(led_road_g, lv_palette_main(LV_PALETTE_GREEN));
 
     led_road_y = lv_led_create(card_lights);
-    lv_obj_set_size(led_road_y, 24, 24);
-    lv_obj_align(led_road_y, LV_ALIGN_CENTER, 0, 0);
+    lv_obj_set_size(led_road_y, 18, 18);
+    lv_obj_align(led_road_y, LV_ALIGN_CENTER, -22, 8);
     lv_led_set_color(led_road_y, lv_palette_main(LV_PALETTE_AMBER));
 
     led_road_r = lv_led_create(card_lights);
-    lv_obj_set_size(led_road_r, 24, 24);
-    lv_obj_align(led_road_r, LV_ALIGN_CENTER, 0, 30);
+    lv_obj_set_size(led_road_r, 18, 18);
+    lv_obj_align(led_road_r, LV_ALIGN_CENTER, -22, 32);
     lv_led_set_color(led_road_r, lv_palette_main(LV_PALETTE_RED));
+
+    // Marine stack (right column, x = +22)
+    led_marine_g = lv_led_create(card_lights);
+    lv_obj_set_size(led_marine_g, 18, 18);
+    lv_obj_align(led_marine_g, LV_ALIGN_CENTER, 22, -16);
+    lv_led_set_color(led_marine_g, lv_palette_main(LV_PALETTE_GREEN));
+
+    led_marine_y = lv_led_create(card_lights);
+    lv_obj_set_size(led_marine_y, 18, 18);
+    lv_obj_align(led_marine_y, LV_ALIGN_CENTER, 22, 8);
+    lv_led_set_color(led_marine_y, lv_palette_main(LV_PALETTE_AMBER));
+
+    led_marine_r = lv_led_create(card_lights);
+    lv_obj_set_size(led_marine_r, 18, 18);
+    lv_obj_align(led_marine_r, LV_ALIGN_CENTER, 22, 32);
+    lv_led_set_color(led_marine_r, lv_palette_main(LV_PALETTE_RED));
 }
 
 static void build_ops(lv_obj_t *parent) {
@@ -440,6 +468,13 @@ static void refresh_active(void) {
         if(s_local.state == STATE_IDLE) lv_led_on(led_road_g);
         else if(s_local.state == STATE_ROAD_CLEARING) lv_led_on(led_road_y);
         else lv_led_on(led_road_r);
+
+        // Marine signal mirrors traffic_lights_set_marine() in fsm_actions:
+        // OFF at INIT, GREEN only at RAISED_HOLD (boats may pass), RED otherwise.
+        lv_led_off(led_marine_g); lv_led_off(led_marine_y); lv_led_off(led_marine_r);
+        if (s_local.state == STATE_RAISED_HOLD) lv_led_on(led_marine_g);
+        else if (s_local.state != STATE_INIT)   lv_led_on(led_marine_r);
+
         last_road_state = s_local.state;
     }
 
@@ -497,15 +532,6 @@ static void refresh_active(void) {
     }
 }
 
-// Hooks required by the rest of the FSM
-void display_notify_state_change(SystemState_t new_state) {
-    if (new_state == STATE_FAULT || new_state == STATE_ESTOP) {
-        // Just force switch to tab if needed
-    }
-}
-void display_notify_event(SystemEvent_t event) { (void)event; }
-void display_request_screen(HmiScreen_t s) { (void)s; }
-
 bool hmi_cmd_post(HmiCmd_t cmd) {
     uint8_t c = (uint8_t)cmd;
     return xQueueSend(g_hmi_cmd_queue, &c, 0) == pdTRUE;
@@ -527,11 +553,6 @@ static void handle_hmi_cmd(HmiCmd_t cmd) {
     case HMI_CMD_NEXT_SCREEN: {
         uint32_t cur = lv_tabview_get_tab_active(tv);
         lv_tabview_set_active(tv, (cur + 1) % 4, LV_ANIM_ON);
-        break;
-    }
-    case HMI_CMD_PREV_SCREEN: {
-        uint32_t cur = lv_tabview_get_tab_active(tv);
-        lv_tabview_set_active(tv, (cur + 3) % 4, LV_ANIM_ON);   // +3 == -1 mod 4
         break;
     }
     default: break;

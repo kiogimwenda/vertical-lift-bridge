@@ -2,17 +2,14 @@
 // hmi/display.h — TFT + LVGL public API.
 // Owner: M4 Abigael
 //
-// >>>>>>>>>>>>>  CREATIVE-LIBERTY TEMPLATE  <<<<<<<<<<<<<
 // This header defines the *contract* with the rest of the firmware:
 //   - the entry-point task            (task_hmi)
-//   - the notification API            (display_notify_state_change, etc.)
-//   - the screen IDs the rest of the
-//     code may switch between        (HMI_SCREEN_*)
+//   - the operator-command type        (HmiCmd_t) and post helper
 //
-// Everything *visual* — layouts, fonts, colours, gauges, animations, icons —
-// is intentionally left as TODO inside hmi/display.cpp. M4 has full creative
-// liberty over the look and feel. This file only ensures the FSM, motor,
-// and safety modules can talk to the display through a stable interface.
+// The HMI is a pure consumer of g_status (polled every refresh), so the FSM
+// does not push state to it — there is no notification API. The 5-button
+// resistor-ladder panel (input.cpp) injects operator commands via hmi_cmd_post().
+// All layout/visuals live in hmi/display.cpp.
 // ============================================================================
 #pragma once
 #include "../system_types.h"
@@ -29,10 +26,10 @@ typedef enum : uint8_t {
 } HmiScreen_t;
 
 // --- Lifecycle ------------------------------------------------------------
+// The HMI task polls g_status every refresh (200 ms), so the FSM does not need
+// to push state changes or events to the display — no notification hooks are
+// exposed. task_hmi is the only public entry point.
 void task_hmi(void* arg);                                  // Pinned to Core 1
-void display_notify_state_change(SystemState_t new_state); // Called from FSM
-void display_notify_event(SystemEvent_t event);            // Optional hook
-void display_request_screen(HmiScreen_t screen);           // External nav
 
 // --- Operator inputs (input.cpp emits these) ------------------------------
 typedef enum : uint8_t {
@@ -41,8 +38,7 @@ typedef enum : uint8_t {
     HMI_CMD_LOWER,
     HMI_CMD_HOLD,
     HMI_CMD_CLEAR_FAULT,
-    HMI_CMD_NEXT_SCREEN,
-    HMI_CMD_PREV_SCREEN
+    HMI_CMD_NEXT_SCREEN
 } HmiCmd_t;
 
 bool hmi_cmd_post(HmiCmd_t cmd);

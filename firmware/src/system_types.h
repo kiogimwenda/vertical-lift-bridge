@@ -31,8 +31,8 @@ typedef enum : uint8_t {
 // ----------------------------------------------------------------------------
 typedef enum : uint8_t {
     EVT_NONE = 0,
-    EVT_VEHICLE_DETECTED,     // Laser break-beam confirms vessel approach
-    EVT_VEHICLE_CLEARED,      // Vehicle past barrier zone
+    EVT_VEHICLE_DETECTED,     // RESERVED — manual-raise design: vessel state is surfaced via g_status.laser (HMI + safe_to_lower guard), not as an FSM transition
+    EVT_VEHICLE_CLEARED,      // RESERVED — see EVT_VEHICLE_DETECTED
     EVT_BARRIER_CLOSED,       // Both servo barriers down
     EVT_BARRIER_OPEN,         // Both servo barriers up
     EVT_TOP_LIMIT_HIT,        // Deck reached top end-stop (timer-estimated, no switch)
@@ -229,7 +229,6 @@ typedef struct {
 #define CW_TANK_CAPACITY_ML        150.0f   // Max tank capacity (ml)
 #define CW_SIM_FILL_RATE_ML_PER_S  30.0f    // Simulated pump fill rate
 #define CW_SIM_DRAIN_RATE_ML_PER_S 40.0f    // Simulated gravity drain rate
-#define CW_SIM_TARGET_DEFAULT_ML   120.0f   // Default fill level (matches static weight)
 #define CW_SIM_TOLERANCE_ML        2.0f     // ±2 ml = "at target"
 
 #define WATCHDOG_KICK_PERIOD_MS     500      // Reserved — current design has each task kick at its own tick rate, this constant is unused but kept in case a centralised kick scheduler is introduced later

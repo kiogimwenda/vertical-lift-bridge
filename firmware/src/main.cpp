@@ -214,6 +214,11 @@ static void task_sensors(void* arg) {
 // task_safety — evaluates fault flags, drives E-stop relay, latches faults.
 // ===========================================================================
 static void task_safety(void* arg) {
+    // Cover task_safety itself with the hardware TWDT — the software watchdog
+    // checker runs in this task, so it cannot detect a hang here. A stall now
+    // trips the 5 s TWDT (panic + reset) instead of going unnoticed.
+    safety_watchdog_subscribe_task();
+
     TickType_t last = xTaskGetTickCount();
     uint8_t   slow_div = 0;
     for (;;) {
@@ -233,6 +238,7 @@ static void task_safety(void* arg) {
             buzzer_tick();
         }
 
+        safety_watchdog_feed_hw();                   // feed the hardware TWDT
         vTaskDelayUntil(&last, pdMS_TO_TICKS(50));   // 20 Hz
     }
 }

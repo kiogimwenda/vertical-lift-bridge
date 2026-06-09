@@ -6,5 +6,6 @@
 void motor_driver_init(void);
 void motor_driver_apply(const MotorCommand_t& cmd);
 void motor_driver_tick(void);                 // Called from task_motor
-int16_t motor_driver_position_mm(void);
-int16_t motor_driver_current_ma(void);
+// Position and current are published to g_status by motor_driver_tick(); all
+// consumers (HMI, counterweight) read them from there, so no public accessors
+// are exposed here.

@@ -148,5 +148,3 @@ void counterweight_tick(void) {
     }
     s_was_balanced = now_balanced;
 }
-
-CounterweightStatus_t counterweight_get(void) { return s_cw; }

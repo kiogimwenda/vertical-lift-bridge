@@ -67,9 +67,6 @@ void fsm_engine_init(void) {
     }
 }
 
-SystemState_t fsm_engine_current(void) { return s_state; }
-uint32_t      fsm_engine_state_age_ms(void) { return millis() - s_entered_ms; }
-
 // ---------------------------------------------------------------------------
 // Transition logic — switch-of-switches; readable enough for 9 states.
 // Order: E-stop / fault have priority over normal events.
@@ -135,6 +132,12 @@ void fsm_engine_handle(SystemEvent_t evt) {
         } else if (evt == EVT_OPERATOR_HOLD) {
             // Same mid-travel freeze treatment as RAISING.
             enter_state(STATE_RAISED_HOLD);
+        } else if (evt == EVT_TICK_100MS && !fsm_guard_safe_to_lower()) {
+            // A vessel became "approaching" mid-descent. safe_to_lower is
+            // otherwise only checked at the RAISED_HOLD->LOWERING edge, so we
+            // re-evaluate it continuously here and abort the descent back to
+            // the hold position rather than lowering onto the vessel.
+            enter_state(STATE_RAISED_HOLD);
         }
         break;
 
@@ -148,13 +151,19 @@ void fsm_engine_handle(SystemEvent_t evt) {
 
     case STATE_FAULT:
         if (evt == EVT_FAULT_CLEARED) {
-            enter_state(STATE_IDLE);
+            // IDLE opens the road (green) + raises the barriers, so only drop
+            // into it if the deck is actually down. If the fault tripped while
+            // the deck was raised, recover into RAISED_HOLD so the operator must
+            // explicitly LOWER (which re-runs safe_to_lower) before the road
+            // reopens — never green-light traffic under a raised span.
+            enter_state(fsm_guard_deck_down() ? STATE_IDLE : STATE_RAISED_HOLD);
         }
         break;
 
     case STATE_ESTOP:
         if (evt == EVT_ESTOP_RELEASED && fsm_guard_estop_clearable()) {
-            enter_state(STATE_IDLE);
+            // Same deck-down gate as fault recovery (see STATE_FAULT).
+            enter_state(fsm_guard_deck_down() ? STATE_IDLE : STATE_RAISED_HOLD);
         }
         break;
 

@@ -36,6 +36,12 @@ void safety_watchdog_kick_fsm    (void) { s_kick_fsm     = millis(); }
 void safety_watchdog_kick_motor  (void) { s_kick_motor   = millis(); }
 void safety_watchdog_kick_sensors(void) { s_kick_sensors = millis(); }
 
+// Subscribe the *calling* task to the hardware TWDT. Used by task_safety so a
+// stall in the very task that runs safety_watchdog_check_all() is still caught
+// (the software layer below can't detect that). Feed it with feed_hw() below.
+void safety_watchdog_subscribe_task(void) { esp_task_wdt_add(NULL); }
+void safety_watchdog_feed_hw(void)        { esp_task_wdt_reset(); }
+
 void safety_watchdog_check_all(void) {
     uint32_t now = millis();
     bool hung = false;

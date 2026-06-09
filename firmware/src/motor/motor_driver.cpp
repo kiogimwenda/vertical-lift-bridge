@@ -98,7 +98,10 @@ void motor_driver_apply(const MotorCommand_t& cmd) {
     case MOTOR_BRAKE:
         // Dynamic short-brake on the L298N: drive both inputs HIGH so both
         // motor terminals sit at the same rail; back-EMF is shorted through
-        // the high-side switches and the rotor is braked.
+        // the high-side switches and the rotor is braked. s_duty stays at the
+        // commanded value (0), so the HMI reports 0 % *propulsive* duty while
+        // braking — truthful, since no drive power is being applied to move the
+        // deck.
         ledcWrite(LEDC_CH_IN1, MOTOR_PWM_MAX);
         ledcWrite(LEDC_CH_IN2, MOTOR_PWM_MAX);
         break;
@@ -181,19 +184,4 @@ void motor_driver_tick(void) {
     }
     s_top_prev = top_hit;
     s_bot_prev = bot_hit;
-}
-
-int16_t motor_driver_position_mm(void) {
-    if (xSemaphoreTake(g_status_mutex, pdMS_TO_TICKS(5)) == pdTRUE) {
-        int16_t v = g_status.deck_position_mm;
-        xSemaphoreGive(g_status_mutex);
-        return v;
-    }
-    return 0;
-}
-
-int16_t motor_driver_current_ma(void) {
-    // Retained for API stability — the L298N module has no current-sense
-    // output wired to the MCU, so this is always 0.
-    return 0;
 }
