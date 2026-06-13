@@ -209,15 +209,15 @@ typedef struct {
 // ---- Timer-based deck positioning ------------------------------------------
 // Limit switches AND the position potentiometer are OMITTED in this build.
 // Deck height is integrated from motor run-time: the deck covers the full
-// DECK_HEIGHT_MAX_MM in DECK_RAISE_TIME_MS going up (against gravity) and in
-// DECK_LOWER_TIME_MS coming down (gravity-assisted, hence faster). The estimate
+// DECK_HEIGHT_MAX_MM in DECK_RAISE_TIME_MS going up and in
+// DECK_LOWER_TIME_MS coming down (both bench-set to the same 14 s). The estimate
 // is pinned hard to 0 mm / DECK_HEIGHT_MAX_MM each time a full traverse
 // completes, so error cannot accumulate from cycle to cycle.
 //   CALIBRATION: bench-measure both times at the PWM duties above and update
 //   these two values — this is what makes the HMI deck height read true.
 //   ASSUMPTION: the deck is parked at the bottom (0 mm) at power-on.
-#define DECK_RAISE_TIME_MS          6000     // 0 -> MAX at MOTOR_PWM_RAISE_DEFAULT  (MEASURE ON HARDWARE)
-#define DECK_LOWER_TIME_MS          5000     // MAX -> 0 at MOTOR_PWM_LOWER_DEFAULT  (MEASURE ON HARDWARE)
+#define DECK_RAISE_TIME_MS          14000    // 0 -> MAX at MOTOR_PWM_RAISE_DEFAULT  (bench-set)
+#define DECK_LOWER_TIME_MS          14000    // MAX -> 0 at MOTOR_PWM_LOWER_DEFAULT  (bench-set)
 #define MOTION_TIMEOUT_MARGIN_MS    2000     // Runaway guard: FAULT_STALL if a move runs this long past a full traverse
 
 #define BARRIER_DOWN_ANGLE          0

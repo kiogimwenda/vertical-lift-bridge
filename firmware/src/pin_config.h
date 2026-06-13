@@ -37,7 +37,7 @@
 
 // ====================== LIMIT SWITCHES (omitted) ====================
 // Limit switches are omitted in this build — end-stops are timer-estimated.
-#define PIN_LIMIT_ANYHIT     39     // UNUSED (input-only). Reserved spare; do not reassign.
+//#define PIN_LIMIT_ANYHIT     39     // UNUSED (input-only). Reserved spare; do not reassign.
 
 // ====================== SPARE PINS ==================================
 // Vision module (ESP32-CAM) and its UART2 link are omitted from this build.

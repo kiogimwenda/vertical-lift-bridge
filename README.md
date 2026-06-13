@@ -45,7 +45,7 @@ firmware/          Main ESP32 application (PlatformIO + Arduino framework)
     motor/               L298N H-bridge + timer-based deck position + runaway guard
     sensors/             Quad laser break-beam direction inference
     counterweight/       Pure-software water-tank balance simulation
-    traffic/             74HC595 road + marine traffic lights + buzzer (buzzer pin disabled)
+    traffic/             74HC595 road traffic lights + buzzer (buzzer pin disabled)
     hmi/                 LVGL touchscreen display + 5-button resistor-ladder input
     safety/              Interlocks (E-stop/relay/servos), fault register, watchdog
 cad/               13 parametric OpenSCAD parts → STL/3MF + print guide
@@ -73,7 +73,7 @@ Single source of truth: [`firmware/src/pin_config.h`](firmware/src/pin_config.h)
 | | CS / DC | 15 / 2 | RST→EN, BL→3V3 in hardware |
 | | Touch CS (XPT2046) | 33 | IRQ polled |
 | **Laser break-beam ×4** | LDR1–4 | 18 / 19 / 21 / 22 | upstream A/B, downstream A/B |
-| **Traffic lights (74HC595)** | DATA / CLK / LATCH | 23 / 4 / 27 | OE→GND; Q0–Q2 road, Q3–Q5 marine |
+| **Traffic lights (74HC595)** | DATA / CLK / LATCH | 23 / 4 / 27 | OE→GND, MR→3V3; Q0–Q2 road (marine not implemented) |
 | **Servos (SG90 ×2)** | shared PWM | 16 | both barriers driven by one channel (mirror) |
 | **Buzzer** | — | −1 (disabled) | freed to preserve UART TX0 |
 | **Operator panel** | 5-button R-ladder | 34 | ADC1_CH6 |

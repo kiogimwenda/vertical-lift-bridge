@@ -31,21 +31,18 @@ void fsm_action_on_entry(SystemState_t s) {
     switch (s) {
     case STATE_INIT:
         traffic_lights_set_road  (TL_OFF);
-        traffic_lights_set_marine(TL_OFF);
         send_motor(MOTOR_STOP, 0);
         break;
 
     case STATE_IDLE:
-        // Bridge down, road open to vehicles → boats must hold (marine red).
+        // Bridge down, road open to vehicles.
         traffic_lights_set_road  (TL_GREEN);
-        traffic_lights_set_marine(TL_RED);
         send_motor(MOTOR_STOP, 0);
         barriers_open();
         break;
 
     case STATE_ROAD_CLEARING:
         traffic_lights_set_road  (TL_AMBER);
-        traffic_lights_set_marine(TL_RED);
         buzzer_chirp(2);
         barriers_close();
         // Arm the counterweight ready-gate. Tank levels are slaved to deck
@@ -56,32 +53,28 @@ void fsm_action_on_entry(SystemState_t s) {
         break;
 
     case STATE_RAISING:
-        // Bridge still moving up — not yet clear for boats (marine red).
-        // Solid (not blinking) so the slow 74HC595 bit-bang only runs on the
-        // state transition, keeping the safety task deterministic during motion.
+        // Bridge still moving up. Solid (not blinking) so the slow 74HC595
+        // bit-bang only runs on the state transition, keeping the safety task
+        // deterministic during motion.
         traffic_lights_set_road  (TL_RED);
-        traffic_lights_set_marine(TL_RED);
         send_motor(MOTOR_UP, MOTOR_PWM_RAISE_DEFAULT);
         break;
 
     case STATE_RAISED_HOLD:
-        // Bridge fully up and holding → boats may pass (marine green).
+        // Bridge fully up and holding.
         send_motor(MOTOR_BRAKE, 0);
         traffic_lights_set_road  (TL_RED);
-        traffic_lights_set_marine(TL_GREEN);
         break;
 
     case STATE_LOWERING:
-        // Bridge coming down → boats must stop (marine red).
+        // Bridge coming down.
         send_motor(MOTOR_DOWN, MOTOR_PWM_LOWER_DEFAULT);
         traffic_lights_set_road  (TL_RED);
-        traffic_lights_set_marine(TL_RED);
         break;
 
     case STATE_ROAD_OPENING:
         send_motor(MOTOR_STOP, 0);
         traffic_lights_set_road  (TL_AMBER);
-        traffic_lights_set_marine(TL_RED);
         buzzer_chirp(1);
         barriers_open();
         break;
@@ -89,14 +82,12 @@ void fsm_action_on_entry(SystemState_t s) {
     case STATE_FAULT:
         send_motor(MOTOR_BRAKE, 0);
         traffic_lights_set_road  (TL_RED);
-        traffic_lights_set_marine(TL_RED);
         buzzer_pattern_fault();
         break;
 
     case STATE_ESTOP:
         send_motor(MOTOR_COAST, 0);   // Hardware E-stop also kills relay
         traffic_lights_set_road  (TL_RED);
-        traffic_lights_set_marine(TL_RED);
         buzzer_pattern_estop();
         break;
 
